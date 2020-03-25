@@ -108,6 +108,8 @@
         <version.lib.weld>3.1.1.Final</version.lib.weld>
         <version.lib.yasson>1.0.6</version.lib.yasson>
         <version.lib.zipkin>2.12.0</version.lib.zipkin>
+        <version.lib.kafka>2.3.0</version.lib.kafka>
+        <version.lib.kafka-junit5>3.1.1</version.lib.kafka-junit5>
     </properties>
 
     <dependencyManagement>
@@ -666,7 +668,17 @@
                 <artifactId>svm</artifactId>
                 <version>${version.lib.graalvm}</version>
             </dependency>
-
+            <!-- Kafka support -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${version.lib.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_2.11</artifactId>
+                <version>${version.lib.kafka}</version>
+            </dependency>
             <!-- Testing libraries -->
             <dependency>
                 <groupId>org.mockito</groupId>
@@ -702,6 +714,11 @@
                 <groupId>javax.activation</groupId>
                 <artifactId>javax.activation-api</artifactId>
                 <version>${version.lib.activation-api}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.salesforce.kafka.test</groupId>
+                <artifactId>kafka-junit5</artifactId>
+                <version>${version.lib.kafka-junit5}</version>
             </dependency>
             <!-- imported boms -->
             <dependency>
