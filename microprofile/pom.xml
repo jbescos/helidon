@@ -52,6 +52,6 @@
         <module>websocket</module>
         <module>reactive-streams</module>
         <module>messaging</module>
-		<module>connectors</module>
+        <module>connectors</module>
     </modules>
 </project>
