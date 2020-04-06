@@ -17,7 +17,7 @@
 
 package io.helidon.microprofile.connectors.kafka;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 
 import org.apache.kafka.clients.producer.Producer;
@@ -43,7 +43,7 @@ public class KafkaSubscriberTckTest extends SubscriberBlackboxVerification<Messa
     @Override
     public Subscriber<Message<String>> createSubscriber() {
         Producer<?, String> producer = Mockito.mock(Producer.class);
-        return KafkaSubscriber.build(Arrays.asList("topic"), 1, producer);
+        return new KafkaSubscriber<>(new BasicKafkaProducer<>(Collections.singletonList("topic"), producer), 1);
     }
 
 }

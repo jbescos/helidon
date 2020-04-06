@@ -22,9 +22,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
+import org.reactivestreams.FlowAdapters;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+
+import io.helidon.common.reactive.SequentialSubscriber;
 
 /**
  * Emitting reactive streams publisher to be used by {@code ReactiveStreams.fromPublisher},
@@ -33,18 +36,13 @@ import org.reactivestreams.Subscription;
  *
  * @param <T> type of emitted item
  */
-class EmittingPublisher<T> implements Publisher<T> {
+abstract class EmittingPublisher<T> implements Publisher<T> {
 
     private static final Logger LOGGER = Logger.getLogger(EmittingPublisher.class.getName());
     private Subscriber<? super T> subscriber;
     private final AtomicReference<State> state = new AtomicReference<>(State.NOT_REQUESTED_YET);
     private final AtomicLong requested = new AtomicLong();
     private final AtomicBoolean terminated = new AtomicBoolean();
-    private final Callback<Long> requestsCallback;
-
-    protected EmittingPublisher(Callback<Long> requestsCallback) {
-        this.requestsCallback = requestsCallback;
-    }
 
     @Override
     public void subscribe(Subscriber<? super T> subscriber) {
@@ -56,10 +54,10 @@ class EmittingPublisher<T> implements Publisher<T> {
                 if (n < 1) {
                     fail(new IllegalArgumentException("Rule §3.9 violated: non-positive request amount is forbidden"));
                 }
-                LOGGER.fine(String.format("Request %s events", n));
+                LOGGER.fine(() -> String.format("Request %s events", n));
                 requested.updateAndGet(r -> Long.MAX_VALUE - r > n ? n + r : Long.MAX_VALUE);
                 state.compareAndSet(State.NOT_REQUESTED_YET, State.READY_TO_EMIT);
-                requestsCallback.nofity(n);
+                tryEmit();
             }
 
             @Override
@@ -71,6 +69,12 @@ class EmittingPublisher<T> implements Publisher<T> {
             }
 
         });
+    }
+
+    abstract void tryEmit();
+
+    protected void emitContext(Runnable runnable) {
+        runnable.run();
     }
 
     /**
@@ -143,11 +147,11 @@ class EmittingPublisher<T> implements Publisher<T> {
         READY_TO_EMIT {
             @Override
             <T> boolean emit(EmittingPublisher<T> publisher, T item) {
-                if (publisher.requested.getAndDecrement() < 1) {
+                if (publisher.requested.getAndUpdate(r -> r > 0 ? r - 1 : 0) < 1) {
                     return false;
                 }
                 try {
-                    publisher.subscriber.onNext(item);
+                    publisher.emitContext(() -> publisher.subscriber.onNext(item));
                     return true;
                 } catch (Throwable t) {
                     // We need to catch the error here because emit is invoked in other context

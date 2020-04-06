@@ -195,8 +195,8 @@ class KafkaCdiExtensionTest {
         LOGGER.fine("==========> test multipleTopics()");
         Map<String, String> p = Map.of("topic", "topic1,topic2");
         Config config = Config.builder().sources(ConfigSources.create(p)).build();
-        Map<String, Object> kafkaProperties = HelidonToKafkaConfigParser.toMap(config);
-        List<String> topics = HelidonToKafkaConfigParser.topicNameList(kafkaProperties);
+        Map<String, Object> kafkaProperties = KafkaConfigUtils.toMap(config);
+        List<String> topics = KafkaConfigUtils.topicNameList(kafkaProperties);
         assertEquals(2, topics.size());
         assertTrue(topics.containsAll(Arrays.asList("topic1", "topic2")));
     }
@@ -252,8 +252,8 @@ class KafkaCdiExtensionTest {
     }
 
     @Test
-    void withBackPresure() {
-        LOGGER.fine("==========> test withBackPresure()");
+    void withBackPressure() {
+        LOGGER.fine("==========> test withBackPressure()");
         List<String> testData = IntStream.range(0, 999).mapToObj(i -> "1").collect(Collectors.toList());
         List<String> expected = Arrays.asList("1", "1", "1");
         CountDownLatch testChannelLatch = new CountDownLatch(expected.size());
@@ -298,7 +298,7 @@ class KafkaCdiExtensionTest {
             // Wait till records are delivered
             boolean consumed = false;
             try {
-                consumed = testChannelLatch.await(60, TimeUnit.SECONDS);
+                consumed = testChannelLatch.await(10, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 LOGGER.fine("Time out");
             }

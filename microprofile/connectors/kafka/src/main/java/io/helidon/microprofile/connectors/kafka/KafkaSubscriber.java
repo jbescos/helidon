@@ -26,7 +26,6 @@ import java.util.logging.Logger;
 import io.helidon.config.Config;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -45,7 +44,7 @@ class KafkaSubscriber<T> implements Subscriber<Message<T>> {
     private final BasicKafkaProducer<?, T> producer;
     private Subscription subscription;
 
-    private KafkaSubscriber(BasicKafkaProducer<?, T> producer, long backpressure){
+    KafkaSubscriber(BasicKafkaProducer<?, T> producer, long backpressure){
         this.backpressure = backpressure;
         this.producer = producer;
     }
@@ -94,18 +93,13 @@ class KafkaSubscriber<T> implements Subscriber<Message<T>> {
      * @return A new KafkaSubscriber instance
      */
     static <T> KafkaSubscriber<T> build(Config config) {
-        Map<String, Object> kafkaConfig = HelidonToKafkaConfigParser.toMap(config);
-        List<String> topics = HelidonToKafkaConfigParser.topicNameList(kafkaConfig);
+        Map<String, Object> kafkaConfig = KafkaConfigUtils.toMap(config);
+        List<String> topics = KafkaConfigUtils.topicNameList(kafkaConfig);
         if (topics.isEmpty()) {
             throw new IllegalArgumentException("The topic is a required configuration value");
         }
         long backpressure = config.get(BACKPRESSURE_SIZE_KEY).asLong().orElse(BACKPRESSURE_SIZE_DEFAULT);
         return new KafkaSubscriber<T>(new BasicKafkaProducer<>(topics, new KafkaProducer<>(kafkaConfig)), backpressure);
-    }
-
-    // For tests
-    static <T> KafkaSubscriber<T> build(List<String> topics, long backpressure, Producer<?, T> producer) {
-        return new KafkaSubscriber<T>(new BasicKafkaProducer<>(topics, producer), backpressure);
     }
 
 }

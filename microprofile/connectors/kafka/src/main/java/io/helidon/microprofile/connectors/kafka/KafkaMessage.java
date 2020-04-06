@@ -20,7 +20,7 @@ import java.util.AbstractMap;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.logging.Logger;
+import java.util.function.Consumer;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -35,16 +35,15 @@ import org.eclipse.microprofile.reactive.messaging.Message;
  */
 class KafkaMessage<K, V> implements Message<ConsumerRecord<K, V>> {
 
-    private static final Logger LOGGER = Logger.getLogger(KafkaMessage.class.getName());
     private final ConsumerRecord<K, V> consumerRecord;
-    private final Callback<Entry<TopicPartition, OffsetAndMetadata>> callback;
+    private final Consumer<Entry<TopicPartition, OffsetAndMetadata>> callback;
 
     /**
      * Kafka specific MP messaging message.
      *
      * @param consumerRecord {@link org.apache.kafka.clients.consumer.ConsumerRecord}
      */
-    KafkaMessage(ConsumerRecord<K, V> consumerRecord, Callback<Entry<TopicPartition, OffsetAndMetadata>> callback) {
+    KafkaMessage(ConsumerRecord<K, V> consumerRecord, Consumer<Entry<TopicPartition, OffsetAndMetadata>> callback) {
         this.consumerRecord = consumerRecord;
         this.callback = callback;
     }
@@ -56,10 +55,10 @@ class KafkaMessage<K, V> implements Message<ConsumerRecord<K, V>> {
 
     @Override
     public CompletionStage<Void> ack() {
-        return CompletableFuture.runAsync(() -> callback.nofity(
-                new AbstractMap.SimpleEntry<TopicPartition, OffsetAndMetadata>(
-                new TopicPartition(consumerRecord.topic(), consumerRecord.partition()),
-                new OffsetAndMetadata(consumerRecord.offset()))));
+        return CompletableFuture.runAsync(() -> callback.accept(
+                new AbstractMap.SimpleEntry<>(
+                        new TopicPartition(consumerRecord.topic(), consumerRecord.partition()),
+                        new OffsetAndMetadata(consumerRecord.offset()))));
     }
 
     @Override

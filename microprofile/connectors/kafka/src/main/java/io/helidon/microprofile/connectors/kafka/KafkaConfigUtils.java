@@ -31,13 +31,13 @@ import io.helidon.config.Config;
  *
  * @see io.helidon.config.Config
  */
-class HelidonToKafkaConfigParser {
+class KafkaConfigUtils {
     /**
      * Topic or topics delimited by commas.
      */
     private static final String TOPIC_NAME = "topic";
 
-    private HelidonToKafkaConfigParser() {
+    private KafkaConfigUtils() {
     }
 
     /**

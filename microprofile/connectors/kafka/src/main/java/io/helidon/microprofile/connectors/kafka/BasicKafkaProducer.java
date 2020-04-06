@@ -29,11 +29,11 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 /**
  * Basic Kafka producer covering basic use-cases.
  * Configurable by Helidon {@link io.helidon.config.Config Config},
- * For more info about configuration see {@link HelidonToKafkaConfigParser}.
+ * For more info about configuration see {@link KafkaConfigUtils}.
  *
  * @param <K> Key type
  * @param <V> Value type
- * @see HelidonToKafkaConfigParser
+ * @see KafkaConfigUtils
  * @see io.helidon.config.Config
  */
 class BasicKafkaProducer<K, V> implements Closeable {

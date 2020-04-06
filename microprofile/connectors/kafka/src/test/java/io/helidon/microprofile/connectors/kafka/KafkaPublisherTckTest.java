@@ -19,10 +19,12 @@ package io.helidon.microprofile.connectors.kafka;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -45,22 +47,40 @@ public class KafkaPublisherTckTest extends PublisherVerification<KafkaMessage<St
         super(new TestEnvironment(50));
     }
 
+
     @Override
     public Publisher<KafkaMessage<String, Long>> createPublisher(long elements) {
         Consumer<String, Long> kafkaConsumer = Mockito.mock(Consumer.class);
-        KafkaPublisher<String, Long> publisher =  KafkaPublisher.build(Executors.newScheduledThreadPool(2), kafkaConsumer,
-                Arrays.asList(TEST_TOPIC_1), 1L, POLL_TIMEOUT);
+        KafkaPublisher<String, Long> publisher = new KafkaPublisher<>(Executors.newScheduledThreadPool(2), kafkaConsumer,
+                Collections.singletonList(TEST_TOPIC_1), POLL_TIMEOUT, 1L) {
+
+            final AtomicLong emittedCounter = new AtomicLong(0);
+
+            @Override
+            protected void emitContext(final Runnable runnable) {
+                if (emittedCounter.incrementAndGet() > elements) {
+                    //Simulate manual closing
+                    this.close();
+                } else {
+                    super.emitContext(runnable);
+                }
+
+            }
+
+        };
         // Emulates that it is buffering 50 elements from Kafka in every poll.
         // This is buffered and it doesn't mean that it will publish them. The elements to publish depends on request
         Mockito.when(kafkaConsumer.poll(ArgumentMatchers.any(Duration.class))).thenReturn(createData(50));
+        publisher.execute();
         return publisher;
     }
 
-    private ConsumerRecords<String, Long> createData(long elementsToPoll){
+    private ConsumerRecords<String, Long> createData(long elementsToPoll) {
         List<ConsumerRecord<String, Long>> records = new LinkedList<>();
-        for (long i=0; i<elementsToPoll; i++) {
+        for (long i = 0; i < elementsToPoll; i++) {
             records.add(new ConsumerRecord<>(TEST_TOPIC_1, 0, 0, "key", i));
-        };
+        }
+        ;
         return new ConsumerRecords<>(Map.of(new TopicPartition(TEST_TOPIC_1, 0), records));
     }
 
@@ -68,13 +88,9 @@ public class KafkaPublisherTckTest extends PublisherVerification<KafkaMessage<St
     public Publisher<KafkaMessage<String, Long>> createFailedPublisher() {
         Consumer<String, Long> kafkaConsumer = Mockito.mock(Consumer.class);
         Mockito.doThrow(new RuntimeException("test error")).when(kafkaConsumer).poll(ArgumentMatchers.any(Duration.class));
-        return KafkaPublisher.build(Executors.newScheduledThreadPool(2), kafkaConsumer,
-                Arrays.asList(TEST_TOPIC_1), 1L, POLL_TIMEOUT);
-    }
-
-    @Override
-    public long maxElementsFromPublisher() {
-        // This is working all the time
-        return Long.MAX_VALUE;
+        KafkaPublisher<String, Long> publisher = new KafkaPublisher<>(Executors.newScheduledThreadPool(2), kafkaConsumer,
+                Arrays.asList(TEST_TOPIC_1), POLL_TIMEOUT, 1L);
+        publisher.execute();
+        return publisher;
     }
 }
