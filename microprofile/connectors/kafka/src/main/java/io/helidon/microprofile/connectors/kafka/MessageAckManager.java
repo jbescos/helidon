@@ -33,18 +33,26 @@ import org.apache.kafka.common.TopicPartition;
 public class MessageAckManager<K, V> {
 
     private final LinkedList<KafkaMessage<K, V>> queue = new LinkedList<>();
+    private final long ackBufferSize;
     private final Consumer<K, V> kafkaConsumer;
     private final ReentrantLock consumerLock;
 
-    public MessageAckManager(final Consumer<K, V> kafkaConsumer, ReentrantLock consumerLock) {
+    public MessageAckManager(final long ackBufferSize, final Consumer<K, V> kafkaConsumer, final ReentrantLock consumerLock) {
+        this.ackBufferSize = ackBufferSize;
         this.kafkaConsumer = kafkaConsumer;
         this.consumerLock = consumerLock;
     }
 
     KafkaMessage<K, V> createKafkaMessage(ConsumerRecord<K, V> consumerRecord) {
-        KafkaMessage<K, V> kafkaMessage = new KafkaMessage<>(consumerRecord, new AckCallBack<>(this));
+        return new KafkaMessage<>(consumerRecord, new AckCallBack<>(this));
+    }
+
+    void register(KafkaMessage<K, V> kafkaMessage){
         queue.addLast(kafkaMessage);
-        return kafkaMessage;
+    }
+
+    boolean ackQueueOverflown(){
+        return queue.size() > ackBufferSize;
     }
 
     void tryCommit() {

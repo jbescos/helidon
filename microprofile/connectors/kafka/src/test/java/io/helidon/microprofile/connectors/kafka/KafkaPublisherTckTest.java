@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.common.TopicPartition;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -52,7 +53,7 @@ public class KafkaPublisherTckTest extends PublisherVerification<KafkaMessage<St
     public Publisher<KafkaMessage<String, Long>> createPublisher(long elements) {
         Consumer<String, Long> kafkaConsumer = Mockito.mock(Consumer.class);
         KafkaPublisher<String, Long> publisher = new KafkaPublisher<>(Executors.newScheduledThreadPool(2), kafkaConsumer,
-                Collections.singletonList(TEST_TOPIC_1), POLL_TIMEOUT, 1L) {
+                Collections.singletonList(TEST_TOPIC_1), POLL_TIMEOUT, 1L, 1000L) {
 
             final AtomicLong emittedCounter = new AtomicLong(0);
 
@@ -71,6 +72,14 @@ public class KafkaPublisherTckTest extends PublisherVerification<KafkaMessage<St
         // Emulates that it is buffering 50 elements from Kafka in every poll.
         // This is buffered and it doesn't mean that it will publish them. The elements to publish depends on request
         Mockito.when(kafkaConsumer.poll(ArgumentMatchers.any(Duration.class))).thenReturn(createData(50));
+        // Emulate immediate commit
+        Mockito.<Void>doAnswer(invocationOnMock -> {
+            OffsetCommitCallback callback = invocationOnMock.getArgument(1);
+            callback.onComplete(null,null);
+            return null;
+        }).when(kafkaConsumer)
+                .commitAsync(ArgumentMatchers.any(Map.class), ArgumentMatchers.any(OffsetCommitCallback.class));
+
         publisher.execute();
         return publisher;
     }
@@ -89,7 +98,7 @@ public class KafkaPublisherTckTest extends PublisherVerification<KafkaMessage<St
         Consumer<String, Long> kafkaConsumer = Mockito.mock(Consumer.class);
         Mockito.doThrow(new RuntimeException("test error")).when(kafkaConsumer).poll(ArgumentMatchers.any(Duration.class));
         KafkaPublisher<String, Long> publisher = new KafkaPublisher<>(Executors.newScheduledThreadPool(2), kafkaConsumer,
-                Arrays.asList(TEST_TOPIC_1), POLL_TIMEOUT, 1L);
+                Arrays.asList(TEST_TOPIC_1), POLL_TIMEOUT, 1L, 1000);
         publisher.execute();
         return publisher;
     }

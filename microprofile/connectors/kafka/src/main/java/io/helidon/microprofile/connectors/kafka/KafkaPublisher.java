@@ -19,17 +19,15 @@ package io.helidon.microprofile.connectors.kafka;
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
@@ -58,26 +56,27 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
     private static final Logger LOGGER = Logger.getLogger(KafkaPublisher.class.getName());
     private static final String POLL_TIMEOUT = "poll.timeout";
     private static final String PERIOD_EXECUTIONS = "period.executions";
+    private static final String ACK_BUFFER_SIZE = "ack.buffer.size";
     private final ReentrantLock consumerLock = new ReentrantLock();
-    private final AtomicBoolean trampolineLock = new AtomicBoolean(false);
-    private final BlockingQueue<ConsumerRecord<K, V>> backPressureBuffer = new LinkedBlockingQueue<>();
+    private final Queue<ConsumerRecord<K, V>> backPressureBuffer = new LinkedList<>();
     private final ScheduledExecutorService scheduler;
     private final Consumer<K, V> kafkaConsumer;
     private final List<String> topics;
     private final long periodExecutions;
     private final long pollTimeout;
-    private final Map<TopicPartition, Long> revokedOffsetMap = new HashMap<>();
+    private final long ackBufferSize;
     private final CountDownLatch partitionsAssignedLatch = new CountDownLatch(1);
     private final MessageAckManager<K, V> msgAckManager;
 
     KafkaPublisher(ScheduledExecutorService scheduler, Consumer<K, V> kafkaConsumer,
-                   List<String> topics, long pollTimeout, long periodExecutions) {
+                   List<String> topics, long pollTimeout, long periodExecutions, long ackBufferSize) {
         this.scheduler = scheduler;
         this.kafkaConsumer = kafkaConsumer;
         this.topics = topics;
         this.periodExecutions = periodExecutions;
         this.pollTimeout = pollTimeout;
-        this.msgAckManager = new MessageAckManager<>(kafkaConsumer, consumerLock);
+        this.ackBufferSize = ackBufferSize;
+        this.msgAckManager = new MessageAckManager<>(ackBufferSize, kafkaConsumer, consumerLock);
     }
 
     /**
@@ -95,26 +94,29 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
         try {
             // Need to lock to avoid onClose() is executed meanwhile task is running
             consumerLock.lock();
-            if (trampolineLock.compareAndSet(false, true)) {
-                if (!scheduler.isShutdown() && !isTerminated()) {
-                    if (backPressureBuffer.isEmpty()) {
-                        try {
-                            kafkaConsumer.poll(Duration.ofMillis(pollTimeout)).forEach(backPressureBuffer::add);
-                        } catch (WakeupException e) {
-                            LOGGER.fine(() -> "It was requested to stop polling from channel");
+            if (!scheduler.isShutdown() && !isTerminated()) {
+                if (msgAckManager.ackQueueOverflown()) {
+                    LOGGER.warning("Too many un-acknowledged messages, polling is paused till next commit!");
+                    return;
+                }
+
+                if (backPressureBuffer.isEmpty()) {
+                    try {
+                        kafkaConsumer.poll(Duration.ofMillis(pollTimeout)).forEach(backPressureBuffer::add);
+                    } catch (WakeupException e) {
+                        LOGGER.fine(() -> "It was requested to stop polling from channel");
+                    }
+                } else {
+                    while (!backPressureBuffer.isEmpty()) {
+                        ConsumerRecord<K, V> cr = backPressureBuffer.peek();
+                        KafkaMessage<K, V> kafkaMessage = msgAckManager.createKafkaMessage(cr);
+                        if (!emit(kafkaMessage)) {
+                            break;
                         }
-                    } else {
-                        while (!backPressureBuffer.isEmpty()) {
-                            ConsumerRecord<K, V> cr = backPressureBuffer.peek();
-                            KafkaMessage<K, V> kafkaMessage = msgAckManager.createKafkaMessage(cr);
-                            if (!emit(kafkaMessage)) {
-                                break;
-                            }
-                            backPressureBuffer.remove(cr);
-                        }
+                        msgAckManager.register(kafkaMessage);
+                        backPressureBuffer.remove(cr);
                     }
                 }
-                trampolineLock.set(false);
             }
         } catch (Exception e) {
             fail(e);
@@ -198,7 +200,9 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
         Consumer<K, V> kafkaConsumer = new KafkaConsumer<>(kafkaConfig);
         long pollTimeout = config.get(POLL_TIMEOUT).asLong().orElse(50L);
         long periodExecutions = config.get(PERIOD_EXECUTIONS).asLong().orElse(100L);
-        KafkaPublisher<K, V> publisher = new KafkaPublisher<>(scheduler, kafkaConsumer, topics, pollTimeout, periodExecutions);
+        long ackBufferSize = config.get(ACK_BUFFER_SIZE).asLong().orElse(1024L);
+        KafkaPublisher<K, V> publisher =
+                new KafkaPublisher<>(scheduler, kafkaConsumer, topics, pollTimeout, periodExecutions, ackBufferSize);
         publisher.execute();
         return publisher;
     }
