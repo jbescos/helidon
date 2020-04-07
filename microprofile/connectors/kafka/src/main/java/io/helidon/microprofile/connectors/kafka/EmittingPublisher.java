@@ -22,12 +22,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
-import org.reactivestreams.FlowAdapters;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import io.helidon.common.reactive.SequentialSubscriber;
 
 /**
  * Emitting reactive streams publisher to be used by {@code ReactiveStreams.fromPublisher},
@@ -57,7 +55,6 @@ abstract class EmittingPublisher<T> implements Publisher<T> {
                 LOGGER.fine(() -> String.format("Request %s events", n));
                 requested.updateAndGet(r -> Long.MAX_VALUE - r > n ? n + r : Long.MAX_VALUE);
                 state.compareAndSet(State.NOT_REQUESTED_YET, State.READY_TO_EMIT);
-                tryEmit();
             }
 
             @Override
@@ -70,8 +67,6 @@ abstract class EmittingPublisher<T> implements Publisher<T> {
 
         });
     }
-
-    abstract void tryEmit();
 
     protected void emitContext(Runnable runnable) {
         runnable.run();

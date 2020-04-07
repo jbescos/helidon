@@ -18,20 +18,18 @@ package io.helidon.microprofile.connectors.kafka;
 
 import java.io.Closeable;
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 
@@ -40,9 +38,9 @@ import io.helidon.common.context.Contexts;
 import io.helidon.config.Config;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 
@@ -55,22 +53,22 @@ import org.apache.kafka.common.errors.WakeupException;
  * @param <V> Value type
  * @see io.helidon.config.Config
  */
-class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> implements Closeable {
+class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> implements Closeable, ConsumerRebalanceListener {
 
     private static final Logger LOGGER = Logger.getLogger(KafkaPublisher.class.getName());
     private static final String POLL_TIMEOUT = "poll.timeout";
     private static final String PERIOD_EXECUTIONS = "period.executions";
-    private final Lock taskLock = new ReentrantLock();
+    private final ReentrantLock consumerLock = new ReentrantLock();
     private final AtomicBoolean trampolineLock = new AtomicBoolean(false);
-    private final PartitionsAssignedLatch partitionsAssignedLatch = new PartitionsAssignedLatch();
-    private final Queue<ConsumerRecord<K, V>> backPressureBuffer = new LinkedList<>();
-    private final BlockingQueue<Entry<TopicPartition, OffsetAndMetadata>> pendingCommits =
-            new LinkedBlockingQueue<>();
+    private final BlockingQueue<ConsumerRecord<K, V>> backPressureBuffer = new LinkedBlockingQueue<>();
     private final ScheduledExecutorService scheduler;
     private final Consumer<K, V> kafkaConsumer;
     private final List<String> topics;
     private final long periodExecutions;
     private final long pollTimeout;
+    private final Map<TopicPartition, Long> revokedOffsetMap = new HashMap<>();
+    private final CountDownLatch partitionsAssignedLatch = new CountDownLatch(1);
+    private final MessageAckManager<K, V> msgAckManager;
 
     KafkaPublisher(ScheduledExecutorService scheduler, Consumer<K, V> kafkaConsumer,
                    List<String> topics, long pollTimeout, long periodExecutions) {
@@ -79,6 +77,7 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
         this.topics = topics;
         this.periodExecutions = periodExecutions;
         this.pollTimeout = pollTimeout;
+        this.msgAckManager = new MessageAckManager<>(kafkaConsumer, consumerLock);
     }
 
     /**
@@ -87,17 +86,15 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
      * This execution runs in one thread that is triggered by the scheduler.
      */
     void execute() {
-        kafkaConsumer.subscribe(topics, partitionsAssignedLatch);
+        kafkaConsumer.subscribe(topics, this);
         // This thread reads from Kafka topics and push in kafkaBufferedEvents
         scheduler.scheduleAtFixedRate(this::tryEmit, 0, periodExecutions, TimeUnit.MILLISECONDS);
     }
 
-
-    @Override
     void tryEmit() {
         try {
             // Need to lock to avoid onClose() is executed meanwhile task is running
-            taskLock.lock();
+            consumerLock.lock();
             if (trampolineLock.compareAndSet(false, true)) {
                 if (!scheduler.isShutdown() && !isTerminated()) {
                     if (backPressureBuffer.isEmpty()) {
@@ -109,9 +106,7 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
                     } else {
                         while (!backPressureBuffer.isEmpty()) {
                             ConsumerRecord<K, V> cr = backPressureBuffer.peek();
-                            // Unfortunately KafkaConsumer is not thread safe, so the commit must happen in this thread.
-                            // KafkaMessage will notify ACK to this thread via Callback
-                            KafkaMessage<K, V> kafkaMessage = new KafkaMessage<>(cr, pendingCommits::add);
+                            KafkaMessage<K, V> kafkaMessage = msgAckManager.createKafkaMessage(cr);
                             if (!emit(kafkaMessage)) {
                                 break;
                             }
@@ -119,23 +114,24 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
                         }
                     }
                 }
-                // Commit ACKs
-                Map<TopicPartition, OffsetAndMetadata> offsets = new LinkedHashMap<>();
-                Entry<TopicPartition, OffsetAndMetadata> entry;
-                while ((entry = pendingCommits.poll()) != null) {
-                    offsets.put(entry.getKey(), entry.getValue());
-                }
-                if (!offsets.isEmpty()) {
-                    kafkaConsumer.commitSync(offsets);
-                    LOGGER.fine(() -> String.format("%s events were ACK: ", offsets.size()));
-                }
                 trampolineLock.set(false);
             }
         } catch (Exception e) {
             fail(e);
         } finally {
-            taskLock.unlock();
+            consumerLock.unlock();
         }
+    }
+
+    @Override
+    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+        LOGGER.fine("Partitions revoked: " + partitions);
+    }
+
+    @Override
+    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+        LOGGER.fine("Partitions assigned: " + partitions);
+        this.partitionsAssignedLatch.countDown();
     }
 
     /**
@@ -147,16 +143,13 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
         kafkaConsumer.wakeup();
         // Wait that current task finishes in case it is still running
         try {
-            taskLock.lock();
+            consumerLock.lock();
             kafkaConsumer.close();
-            if (!pendingCommits.isEmpty()) {
-                LOGGER.warning(pendingCommits.size() + " events were not committed to Kafka");
-            }
             this.complete();
         } catch (RuntimeException e) {
             this.fail(e);
         } finally {
-            taskLock.unlock();
+            consumerLock.unlock();
         }
     }
 

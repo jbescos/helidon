@@ -42,7 +42,7 @@ public class KafkaSampleBean extends AbstractSampleBean {
     public CompletionStage<String> channel1(Message<ConsumerRecord<Long, String>> msg) throws InterruptedException, ExecutionException {
         LOGGER.fine(String.format("Recived %s", msg.getPayload().value()));
         consumed().add(msg.getPayload().value());
-        msg.ack().toCompletableFuture().get();
+        msg.ack();
         countDown("channel1()");
         return CompletableFuture.completedFuture(null);
     }
@@ -51,7 +51,7 @@ public class KafkaSampleBean extends AbstractSampleBean {
     @Outgoing("test-channel-3")
     @Acknowledgment(Acknowledgment.Strategy.MANUAL)
     public Message<String> channel2ToChannel3(Message<ConsumerRecord<Long, String>> msg) throws InterruptedException, ExecutionException {
-        msg.ack().toCompletableFuture().get();
+        msg.ack();
         return Message.of("Processed" + msg.getPayload().value());
     }
     
@@ -62,7 +62,7 @@ public class KafkaSampleBean extends AbstractSampleBean {
             LOGGER.fine(String.format("Received possible error %s", msg.getPayload().value()));
             consumed().add(Integer.toString(Integer.parseInt(msg.getPayload().value())));
         } finally {
-            msg.ack().toCompletableFuture().get();
+            msg.ack();
             countDown("error()");
         }
         return CompletableFuture.completedFuture(null);

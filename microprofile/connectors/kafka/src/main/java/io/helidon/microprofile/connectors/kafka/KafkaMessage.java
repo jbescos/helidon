@@ -16,15 +16,10 @@
 
 package io.helidon.microprofile.connectors.kafka;
 
-import java.util.AbstractMap;
-import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
 /**
@@ -36,16 +31,17 @@ import org.eclipse.microprofile.reactive.messaging.Message;
 class KafkaMessage<K, V> implements Message<ConsumerRecord<K, V>> {
 
     private final ConsumerRecord<K, V> consumerRecord;
-    private final Consumer<Entry<TopicPartition, OffsetAndMetadata>> callback;
+    private final MessageAckManager.AckCallBack<K, V> callback;
+    private final AtomicBoolean acked = new AtomicBoolean(false);
 
     /**
      * Kafka specific MP messaging message.
      *
      * @param consumerRecord {@link org.apache.kafka.clients.consumer.ConsumerRecord}
      */
-    KafkaMessage(ConsumerRecord<K, V> consumerRecord, Consumer<Entry<TopicPartition, OffsetAndMetadata>> callback) {
+    KafkaMessage(ConsumerRecord<K, V> consumerRecord, MessageAckManager.AckCallBack<K, V> ackCallBack) {
         this.consumerRecord = consumerRecord;
-        this.callback = callback;
+        this.callback = ackCallBack;
     }
 
     @Override
@@ -53,12 +49,21 @@ class KafkaMessage<K, V> implements Message<ConsumerRecord<K, V>> {
         return consumerRecord;
     }
 
+    MessageAckManager.AckCallBack<K, V> getCallback(){
+        return callback;
+    }
+
+    boolean isAcked(){
+        return acked.get();
+    }
+
     @Override
     public CompletionStage<Void> ack() {
-        return CompletableFuture.runAsync(() -> callback.accept(
-                new AbstractMap.SimpleEntry<>(
-                        new TopicPartition(consumerRecord.topic(), consumerRecord.partition()),
-                        new OffsetAndMetadata(consumerRecord.offset()))));
+        if (!acked.getAndSet(true)) {
+            return callback.ack(this);
+        }else{
+            return callback.getCommitFuture();
+        }
     }
 
     @Override
