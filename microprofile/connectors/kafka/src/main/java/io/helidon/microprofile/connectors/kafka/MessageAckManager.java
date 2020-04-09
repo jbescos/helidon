@@ -59,23 +59,26 @@ public class MessageAckManager<K, V> {
         consumerLock(() -> {
             Map<TopicPartition, OffsetAndMetadata> ackedOffsets = new HashMap<>();
             Queue<CompletableFuture<Void>> commitFutures = new LinkedList<>();
-            // Gather all acked messages and their futures returned by Message.ack()
-            for (KafkaMessage<K, V> kf = queue.poll();
+            // Gather all acked messages till first un-acked and their futures returned by Message.ack()
+            for (KafkaMessage<K, V> kf = queue.peek();
                  kf != null && kf.isAcked();
-                 kf = queue.poll()) {
-
+                 kf = queue.peek()) {
+                queue.remove(kf);
                 commitFutures.add(kf.getCallback().getCommitFuture());
                 ConsumerRecord<K, V> cr = kf.getPayload();
-                ackedOffsets.put(new TopicPartition(cr.topic(), cr.partition()), new OffsetAndMetadata(cr.offset()));
+                ackedOffsets.put(new TopicPartition(cr.topic(), cr.partition()), new OffsetAndMetadata(cr.offset()+1));
+            }
+            if(ackedOffsets.isEmpty()){
+                return;
             }
             // Commit and don't wait for result
             kafkaConsumer.commitAsync(ackedOffsets, (offsets, exception) -> {
                 consumerLock(() -> {
                     // Commit is confirmed, complete all futures returned by Message.ack()
-                    for (CompletableFuture<Void> future = commitFutures.poll();
+                    for (CompletableFuture<Void> future = commitFutures.peek();
                          future != null;
-                         future = commitFutures.poll()) {
-
+                         future = commitFutures.peek()) {
+                        commitFutures.remove(future);
                         if (exception == null) {
                             future.completeAsync(() -> null);
                         } else {
@@ -101,7 +104,6 @@ public class MessageAckManager<K, V> {
         }
 
         CompletionStage<Void> ack(KafkaMessage<K, V> kafkaMessage) {
-            ackManager.tryCommit();
             return commitFuture;
         }
     }

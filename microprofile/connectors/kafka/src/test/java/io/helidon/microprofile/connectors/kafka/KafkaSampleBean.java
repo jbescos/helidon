@@ -20,7 +20,9 @@ package io.helidon.microprofile.connectors.kafka;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -54,7 +56,7 @@ public class KafkaSampleBean extends AbstractSampleBean {
         msg.ack();
         return Message.of("Processed" + msg.getPayload().value());
     }
-    
+
     @Incoming("test-channel-error")
     @Acknowledgment(Acknowledgment.Strategy.MANUAL)
     public CompletionStage<String> error(Message<ConsumerRecord<Long, String>> msg) throws InterruptedException, ExecutionException {
@@ -65,6 +67,47 @@ public class KafkaSampleBean extends AbstractSampleBean {
             msg.ack();
             countDown("error()");
         }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    static final String NO_ACK = "noAck";
+
+    private CountDownLatch commitLatch;
+
+    public CountDownLatch getCommitLatch() {
+        return commitLatch;
+    }
+
+    public void setCommitLatch(final CountDownLatch commitLatch) {
+        this.commitLatch = commitLatch;
+    }
+
+    private boolean commitEveryThing = false;
+
+    public void commitEveryThing(){
+        commitEveryThing = true;
+    }
+
+    @Incoming("test-channel-6")
+    @Acknowledgment(Acknowledgment.Strategy.MANUAL)
+    public CompletionStage<String> channel6(Message<ConsumerRecord<Long, String>> msg) throws InterruptedException, ExecutionException {
+        LOGGER.fine(String.format("Received %s", msg.getPayload().value()));
+        consumed().add(msg.getPayload().value());
+        // Certain messages are not ACK. We can check later that they will be sent again.
+        if (!NO_ACK.equals(msg.getPayload().value()) || commitEveryThing) {
+            LOGGER.fine("ACKing of " + msg.getPayload().value());
+            msg.ack().whenComplete((aVoid, throwable) -> {
+                if(throwable != null){
+                    LOGGER.log(Level.SEVERE,"Error during committing offset!",throwable);
+                    return;
+                }
+                LOGGER.fine("ACK of " + msg.getPayload().value() + " confirmed!!! "+commitLatch.getCount());
+                commitLatch.countDown();
+            });
+        } else {
+            LOGGER.fine("ACK is not sent");
+        }
+        countDown("channel6()");
         return CompletableFuture.completedFuture(null);
     }
 

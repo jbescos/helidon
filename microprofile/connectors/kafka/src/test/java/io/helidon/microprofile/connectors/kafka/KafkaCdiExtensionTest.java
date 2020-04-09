@@ -89,6 +89,7 @@ class KafkaCdiExtensionTest {
     public static final String TEST_TOPIC_3 = "graph-done-3";
     public static final String TEST_TOPIC_4 = "graph-done-4";
     public static final String TEST_TOPIC_5 = "graph-done-5";
+    public static final String TEST_TOPIC_6 = "graph-done-6";
     public static final String TEST_TOPIC_SHORT_POLL_TIMEOUT = "short_poll_timeout";
 
     protected Map<String, String> cdiConfig() {
@@ -142,6 +143,14 @@ class KafkaCdiExtensionTest {
                 "mp.messaging.incoming.test-channel-5.group.id", "group4",
                 "mp.messaging.incoming.test-channel-5.key.deserializer", LongDeserializer.class.getName(),
                 "mp.messaging.incoming.test-channel-5.value.deserializer", StringDeserializer.class.getName()));
+        p.putAll(Map.of(
+                "mp.messaging.incoming.test-channel-6.connector", KafkaConnector.CONNECTOR_NAME,
+                "mp.messaging.incoming.test-channel-6.bootstrap.servers", kafkaResource.getKafkaConnectString(),
+                "mp.messaging.incoming.test-channel-6.topic", TEST_TOPIC_6,
+                "mp.messaging.incoming.test-channel-6.group.id", "group4",
+                "mp.messaging.incoming.test-channel-6.enable.auto.commit", "false",
+                "mp.messaging.incoming.test-channel-6.key.deserializer", LongDeserializer.class.getName(),
+                "mp.messaging.incoming.test-channel-6.value.deserializer", StringDeserializer.class.getName()));
         p.putAll(Map.of(
                 "mp.messaging.incoming.short-poll-timeout-channel.connector", KafkaConnector.CONNECTOR_NAME,
                 "mp.messaging.incoming.short-poll-timeout-channel.bootstrap.servers", kafkaResource.getKafkaConnectString(),
@@ -292,6 +301,46 @@ class KafkaCdiExtensionTest {
         produceAndCheck(kafkaConsumingBean, testData, TEST_TOPIC_5, testChannelLatch, Arrays.asList("2", "2", "error"));
     }
 
+    @Test
+    public void someEventsNoAck2() throws InterruptedException {
+        testAckLeftOvers(
+                Arrays.asList("1", KafkaSampleBean.NO_ACK, "bad luck", "2","3"),    // First run test data
+                1,                                                                  // Expected commits in first run
+                Arrays.asList("4"),                                                 // Second run test data
+                Arrays.asList("4", KafkaSampleBean.NO_ACK, "bad luck", "2","3")     // Expected received data in second run
+        );
+        testAckLeftOvers(
+                Arrays.asList("1", "2","3", KafkaSampleBean.NO_ACK, "bad luck"),
+                3,
+                Arrays.asList("4"),
+                Arrays.asList("4", KafkaSampleBean.NO_ACK, "bad luck")
+        );
+        testAckLeftOvers(
+                Arrays.asList(KafkaSampleBean.NO_ACK, "bad luck", "2","3"),
+                0,
+                Arrays.asList("4"),
+                Arrays.asList("4", KafkaSampleBean.NO_ACK, "bad luck", "2","3")
+        );
+        testAckLeftOvers(
+                Arrays.asList("a", "b", "c", "d", KafkaSampleBean.NO_ACK, "bad luck", "2","3"),
+                4,
+                Arrays.asList(),
+                Arrays.asList(KafkaSampleBean.NO_ACK, "bad luck", "2","3")
+        );
+        testAckLeftOvers(
+                Arrays.asList(KafkaSampleBean.NO_ACK),
+                0,
+                Arrays.asList(),
+                Arrays.asList(KafkaSampleBean.NO_ACK)
+        );
+        testAckLeftOvers(
+                Arrays.asList("a", "b", "c", "d"),
+                4,
+                Arrays.asList("x"),
+                Arrays.asList("x")
+        );
+    }
+
     private void produceAndCheck(AbstractSampleBean kafkaConsumingBean, List<String> testData, String topic,
                                  CountDownLatch testChannelLatch, List<String> expected) {
         Map<String, Object> config = new HashMap<>();
@@ -302,7 +351,7 @@ class KafkaCdiExtensionTest {
                      new BasicKafkaProducer<>(Collections.singletonList(topic), new KafkaProducer<>(config))) {
             LOGGER.fine("Producing " + testData.size() + " events");
             //Send all test messages(async send means order is not guaranteed) and in parallel
-            testData.parallelStream().forEach(producer::produceAsync);
+            testData.forEach(producer::produceAsync);
             // Wait till records are delivered
             boolean consumed = false;
             try {
@@ -315,6 +364,34 @@ class KafkaCdiExtensionTest {
             Collections.sort(expected);
             assertEquals(expected, kafkaConsumingBean.consumed());
         }
+    }
+
+    private void testAckLeftOvers(List<String> firstRunTestData,
+                                  int expectedCommitsFirstRun,
+                                  List<String> secondRunTestData,
+                                  List<String> secondRunExpected) throws InterruptedException {
+        CountDownLatch testChannelLatch = new CountDownLatch(firstRunTestData.size());
+        KafkaSampleBean kafkaConsumingBean = cdiContainer.select(KafkaSampleBean.class).get();
+        kafkaConsumingBean.setCountDownLatch(testChannelLatch);
+        kafkaConsumingBean.setCommitLatch(new CountDownLatch(expectedCommitsFirstRun));
+        //Same data in and out
+        produceAndCheck(kafkaConsumingBean, firstRunTestData, TEST_TOPIC_6, testChannelLatch, firstRunTestData);
+        assertTrue(kafkaConsumingBean.getCommitLatch().await(5, TimeUnit.SECONDS),
+                "Less than expected confirmed acks");
+        // We need to restart, so the connection to Kafka is restarted too. Then it can push again uncommitted messages
+        LOGGER.fine("Restarting");
+        tearDown();
+        setUp();
+        testChannelLatch = new CountDownLatch(secondRunExpected.size());
+        kafkaConsumingBean = cdiContainer.select(KafkaSampleBean.class).get();
+        kafkaConsumingBean.setCountDownLatch(testChannelLatch);
+        kafkaConsumingBean.setCommitLatch(new CountDownLatch(secondRunExpected.size()));
+        kafkaConsumingBean.commitEveryThing();
+        // Expect leftovers from first run
+        produceAndCheck(kafkaConsumingBean, secondRunTestData, TEST_TOPIC_6, testChannelLatch, secondRunExpected);
+        LOGGER.fine("Restarting");
+        tearDown();
+        setUp();
     }
 
     private <T> Instance<T> getInstance(Class<T> beanType, Annotation annotation) {

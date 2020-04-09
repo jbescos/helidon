@@ -97,6 +97,7 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
             if (!scheduler.isShutdown() && !isTerminated()) {
                 if (msgAckManager.ackQueueOverflown()) {
                     LOGGER.warning("Too many un-acknowledged messages, polling is paused till next commit!");
+                    msgAckManager.tryCommit();
                     return;
                 }
 
@@ -123,6 +124,7 @@ class KafkaPublisher<K, V> extends EmittingPublisher<KafkaMessage<K, V>> impleme
         } finally {
             consumerLock.unlock();
         }
+        msgAckManager.tryCommit();
     }
 
     @Override
