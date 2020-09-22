@@ -15,15 +15,13 @@
  */
 
 /**
- * Utilities for Cloud.
+ * AWS Lambda Stream.
  */
-module io.helidon.microprofile.cloud.common {
+module io.helidon.microprofile.cloud.awslambda.stream {
     requires java.logging;
     requires io.helidon.common;
-    requires static jakarta.enterprise.cdi.api;
-    requires static jakarta.inject.api;
-    requires transitive io.helidon.config;
-    requires microprofile.config.api;
-    requires io.helidon.microprofile.cdi;
-    exports io.helidon.microprofile.cloud.common;
+    requires io.helidon.microprofile.cloud.common;
+    requires transitive aws.lambda.java.core;
+
+    exports io.helidon.microprofile.cloud.awslambda.stream;
 }

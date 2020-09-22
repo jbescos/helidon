@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Oracle and/or its affiliates.
+ * Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,17 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 /**
- * Utilities for Cloud.
+ * Package Cloud.
  */
-module io.helidon.microprofile.cloud.common {
-    requires java.logging;
-    requires io.helidon.common;
-    requires static jakarta.enterprise.cdi.api;
-    requires static jakarta.inject.api;
-    requires transitive io.helidon.config;
-    requires microprofile.config.api;
-    requires io.helidon.microprofile.cdi;
-    exports io.helidon.microprofile.cloud.common;
-}
+package io.helidon.microprofile.cloud.awslambda.request;

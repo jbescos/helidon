@@ -15,13 +15,13 @@
  */
 
 /**
- * Google Cloud Functions.
+ * Azure Functions.
  */
-module io.helidon.jersey.cloud.googlecloudfunctions {
+module io.helidon.microprofile.cloud.azurefunctions {
     requires java.logging;
     requires io.helidon.common;
-    requires io.helidon.cloud.common;
-    requires azure.functions.java.library;
+    requires io.helidon.microprofile.cloud.common;
+    requires transitive azure.functions.java.library;
     requires jakarta.enterprise.cdi.api;
 
     exports io.helidon.microprofile.cloud.azurefunctions;

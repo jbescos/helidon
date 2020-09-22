@@ -15,13 +15,13 @@
  */
 
 /**
- * Google Cloud Functions.
+ * Google Cloud Functions HTTP.
  */
-module io.helidon.jersey.cloud.googlecloudfunctions {
+module io.helidon.microprofile.cloud.googlecloudfunctions.http {
     requires java.logging;
     requires io.helidon.common;
     requires transitive functions.framework.api;
-    requires io.helidon.cloud.common;
+    requires io.helidon.microprofile.cloud.common;
 
     exports io.helidon.microprofile.cloud.googlecloudfunctions.http;
 }

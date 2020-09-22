@@ -39,6 +39,8 @@
         <module>google-cloud-http-functions</module>
         <module>google-cloud-background-functions</module>
         <module>azure-functions</module>
+        <module>aws-lambda-request</module>
+        <module>aws-lambda-stream</module>
     </modules>
 
 </project>

@@ -15,13 +15,13 @@
  */
 
 /**
- * Google Cloud Functions.
+ * Google Cloud Functions Background.
  */
-module io.helidon.jersey.cloud.googlecloudfunctions {
+module io.helidon.microprofile.cloud.googlecloudfunctions.background {
     requires java.logging;
     requires io.helidon.common;
     requires transitive functions.framework.api;
-    requires io.helidon.cloud.common;
+    requires io.helidon.microprofile.cloud.common;
     requires java.json.bind;
 
     exports io.helidon.microprofile.cloud.googlecloudfunctions.background;
