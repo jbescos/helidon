@@ -25,8 +25,8 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>helidon-microprofile-cloud-google-cloud-http-functions</artifactId>
-    <name>Helidon Microprofile Cloud Google Cloud HTTP Functions</name>
+    <artifactId>helidon-microprofile-cloud-azure-functions</artifactId>
+    <name>Helidon Microprofile Azure Functions</name>
 
     <dependencies>
         <dependency>
@@ -37,18 +37,13 @@
             <groupId>io.helidon.microprofile.cloud</groupId>
             <artifactId>helidon-microprofile-cloud-common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.google.cloud.functions</groupId>
-            <artifactId>functions-framework-api</artifactId>
-        </dependency>
+            <dependency>
+                <groupId>com.microsoft.azure.functions</groupId>
+                <artifactId>azure-functions-java-library</artifactId>
+            </dependency>
         <dependency>
             <groupId>io.helidon.jersey</groupId>
             <artifactId>helidon-jersey-client</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.google.cloud.functions.invoker</groupId>
-            <artifactId>java-function-invoker</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

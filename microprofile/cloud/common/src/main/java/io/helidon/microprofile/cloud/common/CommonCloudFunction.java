@@ -38,16 +38,17 @@ public abstract class CommonCloudFunction<T> {
      * First time is invoked it initializes Helidon and creates an instance
      * specified in configuration {@link #CLOUD_FUNCTION_IMPLEMENTATION}.
      * Next invocations will reuse the same instance.
+     *  
      *
      * @return the implementation of specific cloud interface
      */
     @SuppressWarnings("unchecked")
-    protected T delegate() {
+    protected final T delegate() {
         return (T) LazyHelidonInitializer.DELEGATE;
     }
 
     /**
-     * Avoid Helidon is initialized in case CommonCloudFunction is never used.
+     * Avoids Helidon is initialized in case CommonCloudFunction is never used.
      *
      */
     private static class LazyHelidonInitializer {
@@ -56,17 +57,24 @@ public abstract class CommonCloudFunction<T> {
         private static final Object DELEGATE;
 
         static {
-            // Mandatory value
+            // FIXME use ConfigProvider.getConfig()
+            // FIXME create CloudFunctionCdiExtension
+            // Mandatory value, but it can be empty
             String delegateClass = Config.create().get(CLOUD_FUNCTION_IMPLEMENTATION).asString().get();
             LOGGER.fine(() -> CLOUD_FUNCTION_IMPLEMENTATION + "=" + delegateClass);
             // FIXME how to shutdown?
             Main.main(new String[0]);
             LOGGER.fine(() -> "Helidon is started");
-            try {
-                DELEGATE = CDI.current().select(Class.forName(delegateClass)).get();
-                LOGGER.fine(() -> "Delegate is " + DELEGATE);
-            } catch (ClassNotFoundException e) {
-                throw new IllegalStateException(delegateClass + " was not found", e);
+            if (!delegateClass.isEmpty()) {
+                try {
+                    DELEGATE = CDI.current().select(Class.forName(delegateClass)).get();
+                    LOGGER.fine(() -> "Delegate is " + DELEGATE);
+                } catch (ClassNotFoundException e) {
+                    throw new IllegalStateException(delegateClass + " was not found", e);
+                }
+            } else {
+                // It doesn't support delegate
+                DELEGATE = new Object();
             }
         }
 

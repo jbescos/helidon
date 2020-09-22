@@ -857,6 +857,11 @@
                 <artifactId>helidon-microprofile-cloud-google-cloud-background-function</artifactId>
                 <version>${helidon.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-azure-functions</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

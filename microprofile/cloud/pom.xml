@@ -38,6 +38,7 @@
         <module>common</module>
         <module>google-cloud-http-functions</module>
         <module>google-cloud-background-functions</module>
+        <module>azure-functions</module>
     </modules>
 
 </project>
