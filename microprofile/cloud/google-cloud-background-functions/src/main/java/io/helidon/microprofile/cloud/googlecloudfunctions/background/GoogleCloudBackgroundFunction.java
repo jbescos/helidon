@@ -15,10 +15,6 @@
  */
 package io.helidon.microprofile.cloud.googlecloudfunctions.background;
 
-import com.google.cloud.functions.BackgroundFunction;
-import com.google.cloud.functions.Context;
-import com.google.cloud.functions.RawBackgroundFunction;
-
 import java.lang.reflect.Method;
 import java.util.logging.Logger;
 
@@ -26,6 +22,10 @@ import javax.json.bind.Jsonb;
 import javax.json.bind.JsonbBuilder;
 
 import io.helidon.microprofile.cloud.common.CommonCloudFunction;
+
+import com.google.cloud.functions.BackgroundFunction;
+import com.google.cloud.functions.Context;
+import com.google.cloud.functions.RawBackgroundFunction;
 
 /**
  * Helidon Google Cloud Function implementation of com.google.cloud.functions.RawBackgroundFunction.

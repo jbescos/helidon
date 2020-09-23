@@ -15,14 +15,14 @@
  */
 package io.helidon.microprofile.cloud.awslambda.stream;
 
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 import io.helidon.microprofile.cloud.common.CommonCloudFunction;
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 
 /**
  * Helidon AWS Lambda Stream Function implementation of com.amazonaws.services.lambda.runtime.RequestStreamHandler.

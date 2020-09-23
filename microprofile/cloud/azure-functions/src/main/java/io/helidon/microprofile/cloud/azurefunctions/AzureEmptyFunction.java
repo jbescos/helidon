@@ -13,34 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.helidon.microprofile.cloud.awslambda.request;
 
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
+package io.helidon.microprofile.cloud.azurefunctions;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
 
 import io.helidon.microprofile.cloud.common.CloudFunction;
 
-@CloudFunction("Example")
+/**
+ * Helidon Cloud Functions requires one @CloudFunction to be declared.
+ *
+ * This is an empty class to bypass that restriction.
+ *
+ */
+@CloudFunction("AzureEmptyFunction")
 @ApplicationScoped
-public class Example implements RequestHandler<String, Integer> {
+class AzureEmptyFunction {
 
-    @Inject
-    private LengthService lengthService;
-
-    @Override
-    public Integer handleRequest(String input, Context context) {
-        return lengthService.length(input);
-    }
-
-    @ApplicationScoped
-    public static class LengthService {
-
-        public int length(String input) {
-            return input.length();
-        }
-    }
-    
 }

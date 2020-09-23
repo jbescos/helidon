@@ -15,11 +15,11 @@
  */
 package io.helidon.microprofile.cloud.azurefunctions;
 
-import com.microsoft.azure.functions.ExecutionContext;
-
 import javax.enterprise.inject.spi.CDI;
 
 import io.helidon.microprofile.cloud.common.CommonCloudFunction;
+
+import com.microsoft.azure.functions.ExecutionContext;
 
 /**
  * Every Azure function must extend this class.
@@ -28,7 +28,7 @@ import io.helidon.microprofile.cloud.common.CommonCloudFunction;
  * @param <I> input of the function
  * @param <O> output of the function
  */
-public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<Void> {
+public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<AzureEmptyFunction> {
 
     /**
      * This method must be executed inside the Azure function.
@@ -46,14 +46,14 @@ public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<Void>
      * @param context context the Azure context
      * @return the output of the function
      */
-    protected final O handleRequest(I input, ExecutionContext context) {
+    protected O handleRequest(I input, ExecutionContext context) {
         // Initialize Helidon
         delegate();
         // Get instance of AzureCloudFunction with injections
         AzureCloudFunction<I, O> injected = CDI.current().select(getClass()).get();
         return injected.execute(input, context);
     }
-    
+
     /**
      * To be implemented with the user business logic. Every injection in this class
      * will be accessible inside this method.
@@ -63,5 +63,5 @@ public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<Void>
      * @return the output of the function
      */
     protected abstract O execute(I input, ExecutionContext context);
-    
+
 }

@@ -13,34 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.helidon.microprofile.cloud.awslambda.request;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
-
 import io.helidon.microprofile.cloud.common.CloudFunction;
 
-@CloudFunction("Example")
-@ApplicationScoped
-public class Example implements RequestHandler<String, Integer> {
+import javax.enterprise.context.ApplicationScoped;
 
-    @Inject
-    private LengthService lengthService;
+@CloudFunction
+@ApplicationScoped
+public class OtherFunction implements RequestHandler<String, Integer> {
 
     @Override
     public Integer handleRequest(String input, Context context) {
-        return lengthService.length(input);
+        throw new UnsupportedOperationException("This function is not in the microprofile-config.properties");
     }
 
-    @ApplicationScoped
-    public static class LengthService {
-
-        public int length(String input) {
-            return input.length();
-        }
-    }
-    
 }

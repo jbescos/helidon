@@ -25,6 +25,10 @@ import java.io.OutputStream;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
+import io.helidon.microprofile.cloud.common.CloudFunction;
+
+@CloudFunction
+@ApplicationScoped
 public class Example implements RequestStreamHandler {
 
     @Inject

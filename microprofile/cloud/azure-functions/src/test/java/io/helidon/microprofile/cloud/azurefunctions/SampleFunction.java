@@ -28,6 +28,7 @@ import javax.inject.Inject;
 
 import java.util.Optional;
 
+@ApplicationScoped
 public class SampleFunction extends AzureCloudFunction<String, Integer> {
 
     @Inject

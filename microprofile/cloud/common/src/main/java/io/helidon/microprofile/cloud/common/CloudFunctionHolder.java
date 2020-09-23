@@ -13,34 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.helidon.microprofile.cloud.awslambda.request;
 
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
+package io.helidon.microprofile.cloud.common;
+
+import java.util.Optional;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
-import io.helidon.microprofile.cloud.common.CloudFunction;
-
-@CloudFunction("Example")
+/**
+ * This class to holds the cloudFunction instance obtained from {@link CloudFunctionCdiExtension}.
+ *
+ */
 @ApplicationScoped
-public class Example implements RequestHandler<String, Integer> {
+class CloudFunctionHolder {
+
+    // Instance provided by CloudFunctionCdiExtension
+    private final Optional<Object> cloudFunction;
 
     @Inject
-    private LengthService lengthService;
-
-    @Override
-    public Integer handleRequest(String input, Context context) {
-        return lengthService.length(input);
+    CloudFunctionHolder(Optional<Object> cloudFunction) {
+        this.cloudFunction = cloudFunction;
     }
 
-    @ApplicationScoped
-    public static class LengthService {
-
-        public int length(String input) {
-            return input.length();
-        }
+    /**
+     * Returns the cloudFunction provided by {@link CloudFunctionCdiExtension}.
+     * @return the cloud function.
+     */
+    Optional<Object> cloudFunction() {
+        return cloudFunction;
     }
-    
+
 }

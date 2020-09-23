@@ -15,10 +15,10 @@
  */
 package io.helidon.microprofile.cloud.awslambda.request;
 
+import io.helidon.microprofile.cloud.common.CommonCloudFunction;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-
-import io.helidon.microprofile.cloud.common.CommonCloudFunction;
 
 /**
  *

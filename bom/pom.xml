@@ -862,6 +862,16 @@
                 <artifactId>helidon-microprofile-cloud-azure-functions</artifactId>
                 <version>${helidon.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-aws-lambda-request</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-aws-lambda-stream</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

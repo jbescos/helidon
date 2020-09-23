@@ -15,11 +15,11 @@
  */
 package io.helidon.microprofile.cloud.common;
 
+import java.util.Optional;
 import java.util.logging.Logger;
 
 import javax.enterprise.inject.spi.CDI;
 
-import io.helidon.config.Config;
 import io.helidon.microprofile.cdi.Main;
 
 /**
@@ -30,20 +30,13 @@ import io.helidon.microprofile.cdi.Main;
 public abstract class CommonCloudFunction<T> {
 
     /**
-     * Fully qualified name of the class that will implement the cloud function
-     */
-    public static final String CLOUD_FUNCTION_IMPLEMENTATION = "helidon.cloud.function.implementation.class";
-
-    /**
-     * First time is invoked it initializes Helidon and creates an instance
-     * specified in configuration {@link #CLOUD_FUNCTION_IMPLEMENTATION}.
+     * First time is invoked it initializes Helidon and creates a delegated instance.
      * Next invocations will reuse the same instance.
-     *  
      *
      * @return the implementation of specific cloud interface
      */
     @SuppressWarnings("unchecked")
-    protected final T delegate() {
+    protected T delegate() {
         return (T) LazyHelidonInitializer.DELEGATE;
     }
 
@@ -57,25 +50,15 @@ public abstract class CommonCloudFunction<T> {
         private static final Object DELEGATE;
 
         static {
-            // FIXME use ConfigProvider.getConfig()
-            // FIXME create CloudFunctionCdiExtension
-            // Mandatory value, but it can be empty
-            String delegateClass = Config.create().get(CLOUD_FUNCTION_IMPLEMENTATION).asString().get();
-            LOGGER.fine(() -> CLOUD_FUNCTION_IMPLEMENTATION + "=" + delegateClass);
-            // FIXME how to shutdown?
             Main.main(new String[0]);
             LOGGER.fine(() -> "Helidon is started");
-            if (!delegateClass.isEmpty()) {
-                try {
-                    DELEGATE = CDI.current().select(Class.forName(delegateClass)).get();
-                    LOGGER.fine(() -> "Delegate is " + DELEGATE);
-                } catch (ClassNotFoundException e) {
-                    throw new IllegalStateException(delegateClass + " was not found", e);
-                }
+            Optional<Object> optional = CDI.current().select(CloudFunctionHolder.class).get().cloudFunction();
+            if (optional.isPresent()) {
+                DELEGATE = optional.get();
             } else {
-                // It doesn't support delegate
-                DELEGATE = new Object();
+                throw new IllegalStateException("No class annotated with @CloudFunction was found");
             }
+            LOGGER.fine(() -> "Delegate is " + DELEGATE);
         }
 
     }
