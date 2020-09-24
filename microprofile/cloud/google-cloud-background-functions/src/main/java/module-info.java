@@ -22,7 +22,7 @@ module io.helidon.microprofile.cloud.googlecloudfunctions.background {
     requires io.helidon.common;
     requires transitive functions.framework.api;
     requires io.helidon.microprofile.cloud.common;
-    requires static java.json.bind;
+    requires static com.fasterxml.jackson.databind;
 
     exports io.helidon.microprofile.cloud.googlecloudfunctions.background;
 }

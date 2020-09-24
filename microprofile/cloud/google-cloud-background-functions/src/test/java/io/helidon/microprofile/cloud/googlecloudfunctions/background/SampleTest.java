@@ -18,17 +18,15 @@ package io.helidon.microprofile.cloud.googlecloudfunctions.background;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.cloud.functions.BackgroundFunction;
-import com.google.cloud.functions.Context;
-
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,12 +39,15 @@ import javax.ws.rs.core.Response;
 
 import io.helidon.microprofile.cloud.common.CloudFunction;
 
+import com.google.cloud.functions.BackgroundFunction;
+import com.google.cloud.functions.Context;
+
 import org.glassfish.jersey.logging.LoggingFeature;
 import org.junit.jupiter.api.Test;
 
 @CloudFunction
 @ApplicationScoped
-public class SampleTest implements BackgroundFunction<Map<String, String>> {
+public class SampleTest implements BackgroundFunction<Map<String, List<String>>> {
 
     private static final int SOCKET_PORT = 18888;
     
@@ -54,7 +55,7 @@ public class SampleTest implements BackgroundFunction<Map<String, String>> {
     private MyService myService;
 
     @Override
-    public void accept(Map<String, String> event, Context context) throws Exception {
+    public void accept(Map<String, List<String>> event, Context context) throws Exception {
         // Let know the client that the event was received
         try (Socket client = new Socket()) {
             client.connect(new InetSocketAddress("localhost", SOCKET_PORT));
@@ -71,10 +72,10 @@ public class SampleTest implements BackgroundFunction<Map<String, String>> {
         service.submit(confirmation);
         try (LocalServerTestSupport.ServerProcess process = LocalServerTestSupport
                 .startServer(GoogleCloudBackgroundFunction.class, "event")) {
-            Map<String, Map<String, String>> event = new HashMap<>();
-            Map<String, String> data = new HashMap<>();
-            data.put("0", "test 0");
-            data.put("1", "test 1");
+            Map<String, Map<String, List<String>>> event = new HashMap<>();
+            Map<String, List<String>> data = new HashMap<>();
+            data.put("0", Arrays.asList("test 0"));
+            data.put("1", Arrays.asList("test 1"));
             event.put("data", data);
             Response response = ClientBuilder.newClient().register(LoggingFeature.class)
                     .target("http://localhost:8080/").request().post(Entity.json(event));
@@ -86,8 +87,8 @@ public class SampleTest implements BackgroundFunction<Map<String, String>> {
     @ApplicationScoped
     public static class MyService {
 
-        public String first(Map<String, String> event) {
-            return event.get("0");
+        public String first(Map<String, List<String>> event) {
+            return event.get("0").get(0);
         }
 
     }

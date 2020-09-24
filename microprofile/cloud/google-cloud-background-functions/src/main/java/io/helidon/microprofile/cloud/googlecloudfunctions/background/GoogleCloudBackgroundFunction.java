@@ -15,14 +15,12 @@
  */
 package io.helidon.microprofile.cloud.googlecloudfunctions.background;
 
-import java.lang.reflect.Method;
 import java.util.logging.Logger;
-
-import javax.json.bind.Jsonb;
-import javax.json.bind.JsonbBuilder;
 
 import io.helidon.microprofile.cloud.common.CommonCloudFunction;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.functions.BackgroundFunction;
 import com.google.cloud.functions.Context;
 import com.google.cloud.functions.RawBackgroundFunction;
@@ -36,25 +34,12 @@ import com.google.cloud.functions.RawBackgroundFunction;
 public class GoogleCloudBackgroundFunction<T> extends CommonCloudFunction<BackgroundFunction<T>> implements RawBackgroundFunction {
 
     private static final Logger LOGGER = Logger.getLogger(GoogleCloudBackgroundFunction.class.getName());
-    private static final Jsonb JSONB = JsonbBuilder.create();
-
-    private static volatile Class<?> parameterType;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Override
     public void accept(String event, Context context) throws Exception {
         LOGGER.fine(() -> "Event: " + event);
-        if (parameterType == null) {
-            Class<?> delegatedClass = delegate().getClass();
-            for (Method method : delegatedClass.getDeclaredMethods()) {
-                if (method.getName().equals("accept")) {
-                    parameterType = method.getParameterTypes()[0];
-                    LOGGER.fine(() -> "Parameter type: " + parameterType);
-                    break;
-                }
-            }
-        }
-        @SuppressWarnings("unchecked")
-        T type = (T) JSONB.fromJson(event, parameterType);
+        T type = MAPPER.readValue(event, new TypeReference<T>(){});
         delegate().accept(type, context);
     }
 

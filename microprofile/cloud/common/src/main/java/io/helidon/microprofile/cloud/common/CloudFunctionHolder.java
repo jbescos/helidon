@@ -18,20 +18,15 @@ package io.helidon.microprofile.cloud.common;
 
 import java.util.Optional;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
-
 /**
  * This class to holds the cloudFunction instance obtained from {@link CloudFunctionCdiExtension}.
  *
  */
-@ApplicationScoped
 class CloudFunctionHolder {
 
     // Instance provided by CloudFunctionCdiExtension
     private final Optional<Object> cloudFunction;
 
-    @Inject
     CloudFunctionHolder(Optional<Object> cloudFunction) {
         this.cloudFunction = cloudFunction;
     }

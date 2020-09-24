@@ -15,6 +15,8 @@
  */
 package io.helidon.microprofile.cloud.azurefunctions;
 
+import java.util.logging.Logger;
+
 import javax.enterprise.inject.spi.CDI;
 
 import io.helidon.microprofile.cloud.common.CommonCloudFunction;
@@ -30,17 +32,11 @@ import com.microsoft.azure.functions.ExecutionContext;
  */
 public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<AzureEmptyFunction> {
 
+    private static final Logger LOGGER = Logger.getLogger(AzureCloudFunction.class.getName());
+
     /**
      * This method must be executed inside the Azure function.
      * It will initialize Helidon and will delegate in {@link #execute(Object, ExecutionContext)}
-     *
-     * Example of usage:
-     *    @FunctionName("example")
-     *    public Integer example(@HttpTrigger(name = "req", methods = {HttpMethod.GET,
-     *            HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS) HttpRequestMessage<Optional<String>> request,
-     *        ExecutionContext context) {
-     *        return super.handleRequest(request.getBody().get(), context);
-     *    }
      *
      * @param input the input of the function
      * @param context context the Azure context
@@ -48,7 +44,8 @@ public abstract class AzureCloudFunction<I, O> extends CommonCloudFunction<Azure
      */
     protected O handleRequest(I input, ExecutionContext context) {
         // Initialize Helidon
-        delegate();
+        AzureEmptyFunction emptyFunction = delegate();
+        LOGGER.fine(() -> emptyFunction.getClass() + " is ignored");
         // Get instance of AzureCloudFunction with injections
         AzureCloudFunction<I, O> injected = CDI.current().select(getClass()).get();
         return injected.execute(input, context);
