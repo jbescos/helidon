@@ -21,7 +21,7 @@
     <parent>
         <artifactId>helidon-microprofile-project</artifactId>
         <groupId>io.helidon.microprofile</groupId>
-        <version>2.0.3-SNAPSHOT</version>
+        <version>2.1.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <packaging>pom</packaging>
@@ -41,6 +41,7 @@
         <module>azure-functions</module>
         <module>aws-lambda-request</module>
         <module>aws-lambda-stream</module>
+        <module>oci-functions</module>
     </modules>
 
 </project>
