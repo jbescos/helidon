@@ -43,5 +43,11 @@
         <module>messaging-sse</module>
         <module>cors</module>
         <module>tls</module>
+        <module>aws-lambda-request</module>
+        <module>aws-lambda-stream</module>
+        <module>azure-functions</module>
+        <module>google-cloud-background-functions</module>
+        <module>google-cloud-http-functions</module>
+        <module>oci-functions</module>
     </modules>
 </project>
