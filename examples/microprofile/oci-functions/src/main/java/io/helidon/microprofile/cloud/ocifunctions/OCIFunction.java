@@ -13,11 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.helidon.microprofile.cloud.ocifunctions;
 
-package io.helidon.examples.microprofile.oci.functions;
+import java.util.function.Function;
 
-import io.helidon.microprofile.cloud.ocifunctions.OCIFunction;
+import io.helidon.microprofile.cloud.common.CommonCloudFunction;
 
-public class OCIType extends OCIFunction<String, String> {
+/**
+ *
+ * Helidon OCI Function.
+ * This is the class that should be specified as entry point in OCI FN
+ *
+ * @param <I> input of the function
+ * @param <O> output of the function
+ */
+public class OCIFunction<I, O> extends CommonCloudFunction<Function<I, O>> implements Function<I, O> {
+
+    @Override
+    public O apply(I i) {
+        return delegate().apply(i);
+    }
 
 }

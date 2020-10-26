@@ -30,13 +30,13 @@ public class ExampleFunctionTest {
     public final FnTestingRule testing = FnTestingRule.createDefault();
 
     @Test
-    public void testWithFN() {
+    public void testWithFN() throws ClassNotFoundException {
         testing.givenEvent().withBody("helidon function").enqueue();
         testing.thenRun(OCIType.class, "apply");
         FnResult result = testing.getOnlyResult();
         assertEquals("HELIDON FUNCTION", result.getBodyAsString());
     }
-    
+
     @Test
     public void testWithoutFN() {
         String result = new OCIType().apply("helidon function");

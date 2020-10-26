@@ -14,10 +14,29 @@
  * limitations under the License.
  */
 
-package io.helidon.examples.microprofile.oci.functions;
+package io.helidon.microprofile.cloud.common;
 
-import io.helidon.microprofile.cloud.ocifunctions.OCIFunction;
+import java.util.Optional;
 
-public class OCIType extends OCIFunction<String, String> {
+/**
+ * This class to holds the cloudFunction instance obtained from {@link CloudFunctionCdiExtension}.
+ *
+ */
+class CloudFunctionHolder {
+
+    // Instance provided by CloudFunctionCdiExtension
+    private final Optional<Object> cloudFunction;
+
+    CloudFunctionHolder(Optional<Object> cloudFunction) {
+        this.cloudFunction = cloudFunction;
+    }
+
+    /**
+     * Returns the cloudFunction provided by {@link CloudFunctionCdiExtension}.
+     * @return the cloud function.
+     */
+    Optional<Object> cloudFunction() {
+        return cloudFunction;
+    }
 
 }

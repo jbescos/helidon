@@ -13,11 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package io.helidon.examples.microprofile.oci.functions;
-
-import io.helidon.microprofile.cloud.ocifunctions.OCIFunction;
-
-public class OCIType extends OCIFunction<String, String> {
-
-}
+/**
+ * OCI Functions.
+ */
+package io.helidon.microprofile.cloud.ocifunctions;
