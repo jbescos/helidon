@@ -1,0 +1,5 @@
+fn start
+fn -v build
+fn --verbose deploy --create-app --app uppercase --local --no-bump
+fn list functions uppercase
+curl --noproxy "*" -d 'test' -X POST http://localhost:8080/t/uppercase/uppercase
