@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-    Copyright (c) 2017, 2020 Oracle and/or its affiliates.
+    Copyright (c) 2017, 2021 Oracle and/or its affiliates.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -881,6 +881,37 @@
             <dependency>
                 <groupId>io.helidon.microprofile.tests</groupId>
                 <artifactId>helidon-microprofile-tests-junit5</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <!-- Cloud -->
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-common</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-google-cloud-http-function</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-google-cloud-background-function</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-azure-functions</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-aws-lambda-request</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.microprofile.cloud</groupId>
+                <artifactId>helidon-microprofile-cloud-aws-lambda-stream</artifactId>
                 <version>${helidon.version}</version>
             </dependency>
             <!-- Logging -->
