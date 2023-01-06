@@ -18,10 +18,13 @@ package io.helidon.integrations.micrometer;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Enumeration;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import io.helidon.config.Config;
 import io.helidon.config.ConfigValue;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.config.MeterRegistryConfig;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
@@ -33,13 +36,82 @@ import io.prometheus.client.Collector;
  * @param <REQ> HTTP request type
  * @param <HAND> The request and response handler.
  */
-public abstract class MicrometerPrometheusRegistrySupport<REQ, HAND> extends MicrometerBuiltInRegistrySupport<REQ, HAND> {
+public final class MicrometerPrometheusRegistrySupport<REQ, HAND> extends MicrometerBuiltInRegistrySupport<REQ, HAND> {
+
+    private final Predicate<REQ> handlerFilter;
+    private final Function<MeterRegistry, HAND> handlerFn;
+
+    /**
+     * Creates an instance of MicrometerPrometheusRegistrySupport.
+     * @param <REQ> The server request.
+     * @param <HAND> The server handler.
+     * @param handlerFilter The predicate to apply the handler.
+     * @param handlerFn The instance of the handler.
+     * @param type The built in registry type.
+     * @param node The configuration value.
+     * @return an instance of MicrometerPrometheusRegistrySupport.
+     */
+    public static <REQ, HAND> MicrometerPrometheusRegistrySupport<REQ, HAND> create(
+            Predicate<REQ> handlerFilter, Function<MeterRegistry, HAND> handlerFn,
+            BuiltInRegistryType type, ConfigValue<Config> node) {
+        switch (type) {
+            case PROMETHEUS:
+                return create(handlerFilter, handlerFn, type,
+                        MicrometerPrometheusRegistrySupport.PrometheusConfigImpl.registryConfig(node));
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+    }
+
+    /**
+     * Creates an instance of MicrometerPrometheusRegistrySupport.
+     * @param <REQ> The server request.
+     * @param <HAND> The server handler.
+     * @param handlerFilter The predicate to apply the handler.
+     * @param handlerFn The instance of the handler.
+     * @param type The built in registry type.
+     * @param meterRegistryConfig The meter registry config.
+     * @return an instance of MicrometerPrometheusRegistrySupport.
+     */
+    public static <REQ, HAND> MicrometerPrometheusRegistrySupport<REQ, HAND> create(
+            Predicate<REQ> handlerFilter, Function<MeterRegistry, HAND> handlerFn,
+            BuiltInRegistryType type, MeterRegistryConfig meterRegistryConfig) {
+        switch (type) {
+            case PROMETHEUS:
+                return new MicrometerPrometheusRegistrySupport(handlerFilter, handlerFn, meterRegistryConfig);
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+    }
+
+    /**
+     * Creates an instance of MicrometerPrometheusRegistrySupport.
+     * @param <REQ> The server request.
+     * @param <HAND> The server handler.
+     * @param handlerFilter The predicate to apply the handler.
+     * @param handlerFn The instance of the handler.
+     * @param type The built in registry type.
+     * @return an instance of MicrometerPrometheusRegistrySupport.
+     */
+    public static <REQ, HAND> MicrometerPrometheusRegistrySupport<REQ, HAND> create(
+            Predicate<REQ> handlerFilter, Function<MeterRegistry, HAND> handlerFn, BuiltInRegistryType type) {
+        MeterRegistryConfig meterRegistryConfig;
+        switch (type) {
+            case PROMETHEUS:
+                meterRegistryConfig = PrometheusConfig.DEFAULT;
+                break;
+
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+        return create(handlerFilter, handlerFn, type, meterRegistryConfig);
+    }
 
     /**
      * Prometheus configuration.
      *
      */
-    public static class PrometheusConfigImpl extends AbstractMeterRegistryConfig implements PrometheusConfig {
+    private static class PrometheusConfigImpl extends AbstractMeterRegistryConfig implements PrometheusConfig {
 
         /**
          * Obtain a PrometheusConfig from the configuration.
@@ -67,8 +139,11 @@ public abstract class MicrometerPrometheusRegistrySupport<REQ, HAND> extends Mic
         }
     }
 
-    protected MicrometerPrometheusRegistrySupport(MeterRegistryConfig meterRegistryConfig) {
+    private MicrometerPrometheusRegistrySupport(Predicate<REQ> handlerFilter, Function<MeterRegistry, HAND> handlerFn,
+            MeterRegistryConfig meterRegistryConfig) {
         super(meterRegistryConfig);
+        this.handlerFilter = handlerFilter;
+        this.handlerFn = handlerFn;
     }
 
     @Override
@@ -130,5 +205,15 @@ public abstract class MicrometerPrometheusRegistrySupport<REQ, HAND> extends Mic
             default:
                 return "untyped";
         }
+    }
+
+    @Override
+    protected Predicate<REQ> handlerFilter() {
+        return handlerFilter;
+    }
+
+    @Override
+    protected Function<MeterRegistry, HAND> handlerFn() {
+        return handlerFn;
     }
 }

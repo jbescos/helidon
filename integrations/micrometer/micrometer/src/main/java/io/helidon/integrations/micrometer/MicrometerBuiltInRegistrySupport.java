@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import io.helidon.config.Config;
 
@@ -54,7 +55,18 @@ abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
 
     protected abstract MeterRegistry createRegistry(MeterRegistryConfig meterRegistryConfig);
 
-    protected abstract Function<REQ, Optional<HAND>> requestToHandlerFn(MeterRegistry registry);
+    Function<REQ, Optional<HAND>> requestToHandlerFn(MeterRegistry registry) {
+        /*
+         * Deal with a request if the MediaType is text/plain or the query parameter "type" specifies "prometheus".
+         */
+        return (REQ req) -> {
+            if (handlerFilter().test(req)) {
+                return Optional.of(handlerFn().apply(registry));
+            } else {
+                return Optional.empty();
+            }
+        };
+    }
 
 
     public MeterRegistry registry() {
@@ -64,4 +76,8 @@ abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
     protected static String unrecognizedMessage(BuiltInRegistryType type) {
         return String.format("Built-in registry type %s recognized but no support found", type.name());
     }
+
+    protected abstract Predicate<REQ> handlerFilter();
+
+    protected abstract Function<MeterRegistry, HAND> handlerFn();
 }
