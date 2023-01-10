@@ -18,20 +18,23 @@ package io.helidon.integrations.micrometer.reactive;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import io.helidon.common.http.Http;
 import io.helidon.common.media.type.MediaTypes;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
 import io.helidon.reactive.webclient.WebClient;
 import io.helidon.reactive.webclient.WebClientResponse;
 import io.helidon.reactive.webserver.WebServer;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,16 +55,8 @@ public class MicrometerSimplePrometheusTest {
 
     @BeforeAll
     static void prepAll() {
-        ReactiveMeterRegistryFactory factory = ReactiveMeterRegistryFactory.builder()
-                .enrollRegistry(registry, req -> {
-                    // If there is no media type, assume text/plain which means, for us, Prometheus.
-                    if (req.headers().bestAccepted(MediaTypes.TEXT_PLAIN).isPresent()
-                            || req.queryParams().first("type").orElse("").equals("prometheus")) {
-                        return Optional.of(ReactivePrometheusHandler.create(registry));
-                    } else {
-                        return Optional.empty();
-                    }
-                })
+        MeterRegistryFactory factory = MeterRegistryFactory.builder()
+                .enrollRegistry(registry)
                 .build();
         MicrometerSupport.Builder builder = MicrometerSupport.builder()
                 .meterRegistryFactorySupplier(factory);

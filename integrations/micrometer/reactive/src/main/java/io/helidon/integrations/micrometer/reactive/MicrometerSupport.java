@@ -15,11 +15,16 @@
  */
 package io.helidon.integrations.micrometer.reactive;
 
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
+import io.helidon.common.http.Http;
+import io.helidon.common.media.type.MediaTypes;
 import io.helidon.config.Config;
 import io.helidon.config.metadata.Configured;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
 import io.helidon.reactive.servicecommon.HelidonRestServiceSupport;
 import io.helidon.reactive.webserver.Handler;
 import io.helidon.reactive.webserver.Routing;
@@ -48,7 +53,7 @@ public class MicrometerSupport extends HelidonRestServiceSupport {
     static final String DEFAULT_CONTEXT = "/micrometer";
     private static final String SERVICE_NAME = "Micrometer";
 
-    private final ReactiveMeterRegistryFactory meterRegistryFactory;
+    private final MeterRegistryFactory meterRegistryFactory;
 
     private MicrometerSupport(Builder builder) {
         super(Logger.getLogger(MicrometerSupport.class.getName()), builder, SERVICE_NAME);
@@ -112,9 +117,37 @@ public class MicrometerSupport extends HelidonRestServiceSupport {
           looking for the first non-empty Optional<Handler> and invoke that handler. If
           none matches then return an error response.
          */
-        meterRegistryFactory
-                .matchingHandler(serverRequest, serverResponse)
+        matchingHandler(serverRequest, serverResponse)
                 .accept(serverRequest, serverResponse);
+    }
+
+    private Handler matchingHandler(ServerRequest serverRequest, ServerResponse serverResponse) {
+        // Apply the same function to all registries?
+        return meterRegistryFactory.registryEnrollments().stream()
+                .map(e -> requestToHandlerFn(e.meterRegistry()).apply(serverRequest))
+                .flatMap(Optional::stream)
+                .findFirst()
+                .orElse((req, res) -> res
+                        .status(Http.Status.NOT_ACCEPTABLE_406)
+                        .send(MeterRegistryFactory.NO_MATCHING_REGISTRY_ERROR_MESSAGE));
+    }
+
+    private Function<ServerRequest, Optional<Handler>> requestToHandlerFn(MeterRegistry registry) {
+        /*
+         * Deal with a request if the MediaType is text/plain or the query parameter "type" specifies "prometheus".
+         */
+        return (ServerRequest req) -> {
+            if (req.headers()
+                    .bestAccepted(MediaTypes.TEXT_PLAIN).isPresent()
+                    || req.queryParams()
+                    .first("type")
+                    .orElse("")
+                    .equals("prometheus")) {
+                return Optional.of(ReactivePrometheusHandler.create(registry));
+            } else {
+                return Optional.empty();
+            }
+        };
     }
 
     /**
@@ -124,7 +157,7 @@ public class MicrometerSupport extends HelidonRestServiceSupport {
     public static class Builder extends HelidonRestServiceSupport.Builder<Builder, MicrometerSupport>
             implements io.helidon.common.Builder<Builder, MicrometerSupport> {
 
-        private Supplier<ReactiveMeterRegistryFactory> meterRegistryFactorySupplier = null;
+        private Supplier<MeterRegistryFactory> meterRegistryFactorySupplier = null;
 
         private Builder() {
             super(DEFAULT_CONTEXT);
@@ -133,8 +166,8 @@ public class MicrometerSupport extends HelidonRestServiceSupport {
         @Override
         public MicrometerSupport build() {
             if (null == meterRegistryFactorySupplier) {
-                meterRegistryFactorySupplier = () -> ReactiveMeterRegistryFactory.getInstance(
-                        ReactiveMeterRegistryFactory.builder().config(config()));
+                meterRegistryFactorySupplier = () -> MeterRegistryFactory.getInstance(
+                        MeterRegistryFactory.builder().config(config()));
             }
             return new MicrometerSupport(this);
         }
@@ -145,7 +178,7 @@ public class MicrometerSupport extends HelidonRestServiceSupport {
          * @param meterRegistryFactory the MeterRegistry  to use
          * @return updated builder instance
          */
-        public Builder meterRegistryFactorySupplier(ReactiveMeterRegistryFactory meterRegistryFactory) {
+        public Builder meterRegistryFactorySupplier(MeterRegistryFactory meterRegistryFactory) {
             this.meterRegistryFactorySupplier = () -> meterRegistryFactory;
             return this;
         }

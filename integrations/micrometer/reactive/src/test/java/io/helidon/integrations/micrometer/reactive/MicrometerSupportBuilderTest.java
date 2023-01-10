@@ -24,6 +24,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import io.helidon.config.Config;
 import io.helidon.config.ConfigSources;
 import io.helidon.integrations.micrometer.BuiltInRegistryType;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.prometheus.PrometheusConfig;
@@ -37,7 +39,7 @@ public class MicrometerSupportBuilderTest {
 
     @Test
     public void testValidBuiltInRegistries() {
-        ReactiveMeterRegistryFactory factory = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory factory = MeterRegistryFactory.builder()
                 .enrollBuiltInRegistry(BuiltInRegistryType.PROMETHEUS, PrometheusConfig.DEFAULT)
                 .build();
         MicrometerSupport support = MicrometerSupport.builder()
@@ -58,8 +60,8 @@ public class MicrometerSupportBuilderTest {
     public void testValidExplicitlyAddedPrometheusRegistry() {
         double inc = 4.0;
         PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-        ReactiveMeterRegistryFactory factory = ReactiveMeterRegistryFactory.builder()
-                .enrollRegistry(registry, r -> Optional.of((req, resp) -> resp.send(registry.scrape())))
+        MeterRegistryFactory factory = MeterRegistryFactory.builder()
+                .enrollRegistry(registry)
                 .build();
 
         MicrometerSupport support = MicrometerSupport.builder()
@@ -80,8 +82,8 @@ public class MicrometerSupportBuilderTest {
         double inc = 5.0;
 
         PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-        ReactiveMeterRegistryFactory factory = ReactiveMeterRegistryFactory.builder()
-                .enrollRegistry(registry, r -> Optional.of((req, resp) -> resp.send(registry.scrape())))
+        MeterRegistryFactory factory = MeterRegistryFactory.builder()
+                .enrollRegistry(registry)
                 .enrollBuiltInRegistry(BuiltInRegistryType.PROMETHEUS, PrometheusConfig.DEFAULT)
                 .build();
 
@@ -102,12 +104,12 @@ public class MicrometerSupportBuilderTest {
     public void testBuiltInWithSingleGoodType() {
         double inc = 6.0;
         Config config = Config.create(ConfigSources.classpath("/micrometerTestData.json")).get("singleValue");
-        ReactiveMeterRegistryFactory.Builder factoryBuilder = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory.Builder factoryBuilder = MeterRegistryFactory.builder()
                 .config(config.get("metrics.micrometer"));
 
         assertThat(factoryBuilder.logRecords(), is(empty()));
 
-        ReactiveMeterRegistryFactory factory = factoryBuilder.build();
+        MeterRegistryFactory factory = factoryBuilder.build();
         MicrometerSupport support = MicrometerSupport.builder()
                 .config(config.get("metrics.micrometer"))
                 .meterRegistryFactorySupplier(factory)
@@ -130,9 +132,9 @@ public class MicrometerSupportBuilderTest {
     @Test
     public void testBuiltInWithOneBadType() {
         Config config = Config.create(ConfigSources.classpath("/micrometerTestData.json")).get("singleBadValueWithGoodOne");
-        ReactiveMeterRegistryFactory.Builder factoryBuilder = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory.Builder factoryBuilder = MeterRegistryFactory.builder()
                 .config(config.get("metrics.micrometer"));
-        ReactiveMeterRegistryFactory factory = factoryBuilder.build();
+        MeterRegistryFactory factory = factoryBuilder.build();
         MicrometerSupport.Builder builder = MicrometerSupport.builder()
                 .meterRegistryFactorySupplier(factory);
 
@@ -147,10 +149,10 @@ public class MicrometerSupportBuilderTest {
     public void testBuiltInWithConfig() {
         Config config = Config.create(ConfigSources.classpath("/micrometerTestData.json")).get("structure");
 
-        ReactiveMeterRegistryFactory.Builder factoryBuilder = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory.Builder factoryBuilder = MeterRegistryFactory.builder()
                 .config(config.get("metrics.micrometer"));
 
-        ReactiveMeterRegistryFactory factory = factoryBuilder.build();
+        MeterRegistryFactory factory = factoryBuilder.build();
 
         MicrometerSupport.Builder builder = MicrometerSupport.builder()
                 .config(config.get("metrics.micrometer"))
@@ -173,10 +175,10 @@ public class MicrometerSupportBuilderTest {
     public void testMultipleNamesOnly() {
         Config config = Config.create(ConfigSources.classpath("/micrometerTestData.json")).get("listOfValues");
 
-        ReactiveMeterRegistryFactory.Builder factoryBuilder = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory.Builder factoryBuilder = MeterRegistryFactory.builder()
                 .config(config.get("metrics.micrometer"));
 
-        ReactiveMeterRegistryFactory factory = factoryBuilder.build();
+        MeterRegistryFactory factory = factoryBuilder.build();
 
         MicrometerSupport.Builder builder = MicrometerSupport.builder()
                 .config(config.get("metrics.micrometer"))

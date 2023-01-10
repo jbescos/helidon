@@ -20,6 +20,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 import io.helidon.integrations.micrometer.BuiltInRegistryType;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
@@ -29,7 +31,7 @@ public class MicrometerTestAddingMeters {
 
     @Test
     public void addCounter() {
-        ReactiveMeterRegistryFactory factory = ReactiveMeterRegistryFactory.builder()
+        MeterRegistryFactory factory = MeterRegistryFactory.builder()
                 .enrollBuiltInRegistry(BuiltInRegistryType.PROMETHEUS, PrometheusConfig.DEFAULT)
                 .build();
 

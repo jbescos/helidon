@@ -17,9 +17,12 @@
 package io.helidon.integrations.micrometer.nima;
 
 import java.io.StringWriter;
+import java.util.List;
+import java.util.Optional;
 
 import io.helidon.common.http.Http;
 import io.helidon.common.media.type.MediaTypes;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
 import io.helidon.integrations.micrometer.MicrometerPrometheusRegistrySupport;
 import io.helidon.nima.webserver.http.Handler;
 import io.helidon.nima.webserver.http.ServerRequest;

@@ -15,12 +15,18 @@
  */
 package io.helidon.integrations.micrometer.nima;
 
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import io.helidon.common.context.Contexts;
+import io.helidon.common.http.Http;
+import io.helidon.common.media.type.MediaTypes;
 import io.helidon.config.Config;
 import io.helidon.config.metadata.Configured;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
 import io.helidon.nima.servicecommon.HelidonFeatureSupport;
+import io.helidon.nima.webserver.http.Handler;
 import io.helidon.nima.webserver.http.HttpRouting;
 import io.helidon.nima.webserver.http.ServerRequest;
 import io.helidon.nima.webserver.http.ServerResponse;
@@ -47,7 +53,7 @@ public class MicrometerFeature extends HelidonFeatureSupport {
     static final String DEFAULT_CONTEXT = "/micrometer";
     private static final String SERVICE_NAME = "Micrometer";
 
-    private final NimaMeterRegistryFactory meterRegistryFactory;
+    private final MeterRegistryFactory meterRegistryFactory;
 
     private MicrometerFeature(Builder builder) {
         super(System.getLogger(MicrometerFeature.class.getName()), builder, SERVICE_NAME);
@@ -105,14 +111,36 @@ public class MicrometerFeature extends HelidonFeatureSupport {
     }
 
     private void getOrOptions(ServerRequest serverRequest, ServerResponse serverResponse) throws Exception {
+        matchingHandler(serverRequest, serverResponse).handle(serverRequest, serverResponse);
+    }
+
+    private Function<ServerRequest, Optional<Handler>> requestToHandlerFn(MeterRegistry registry) {
         /*
-          Each meter registry is paired with a function. For each, invoke the function
-          looking for the first non-empty Optional<Handler> and invoke that handler. If
-          none matches then return an error response.
+         * Deal with a request if the MediaType is text/plain or the query parameter "type" specifies "prometheus".
          */
-        meterRegistryFactory
-                .matchingHandler(serverRequest, serverResponse)
-                .handle(serverRequest, serverResponse);
+        return (ServerRequest req) -> {
+            if (req.headers()
+                    .bestAccepted(MediaTypes.TEXT_PLAIN).isPresent()
+                    || req.query()
+                    .first("type")
+                    .orElse("")
+                    .equals("prometheus")) {
+                return Optional.of(NimaPrometheusHandler.create(registry));
+            } else {
+                return Optional.empty();
+            }
+        };
+    }
+
+    private Handler matchingHandler(ServerRequest serverRequest, ServerResponse serverResponse) {
+        // Apply the same function to all registries?
+        return meterRegistryFactory.registryEnrollments().stream()
+            .map(e -> requestToHandlerFn(e.meterRegistry()).apply(serverRequest))
+            .flatMap(Optional::stream)
+            .findFirst()
+            .orElse((req, res) -> res
+            .status(Http.Status.NOT_ACCEPTABLE_406)
+            .send(MeterRegistryFactory.NO_MATCHING_REGISTRY_ERROR_MESSAGE));
     }
 
     /**
@@ -122,7 +150,7 @@ public class MicrometerFeature extends HelidonFeatureSupport {
     public static class Builder extends HelidonFeatureSupport.Builder<Builder, MicrometerFeature>
             implements io.helidon.common.Builder<Builder, MicrometerFeature> {
 
-        private Supplier<NimaMeterRegistryFactory> meterRegistryFactorySupplier = null;
+        private Supplier<MeterRegistryFactory> meterRegistryFactorySupplier = null;
 
         private Builder() {
             super(DEFAULT_CONTEXT);
@@ -131,8 +159,8 @@ public class MicrometerFeature extends HelidonFeatureSupport {
         @Override
         public MicrometerFeature build() {
             if (null == meterRegistryFactorySupplier) {
-                meterRegistryFactorySupplier = () -> NimaMeterRegistryFactory.getInstance(
-                        NimaMeterRegistryFactory.builder().config(config()));
+                meterRegistryFactorySupplier = () -> MeterRegistryFactory.getInstance(
+                        MeterRegistryFactory.builder().config(config()));
             }
             return new MicrometerFeature(this);
         }
@@ -140,10 +168,10 @@ public class MicrometerFeature extends HelidonFeatureSupport {
         /**
          * Assigns a {@code MeterRegistryFactory}.
          *
-         * @param meterRegistryFactory the MeterRegistry  to use
+         * @param meterRegistryFactory the MeterRegistry to use
          * @return updated builder instance
          */
-        public Builder meterRegistryFactorySupplier(NimaMeterRegistryFactory meterRegistryFactory) {
+        public Builder meterRegistryFactorySupplier(MeterRegistryFactory meterRegistryFactory) {
             this.meterRegistryFactorySupplier = () -> meterRegistryFactory;
             return this;
         }

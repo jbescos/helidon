@@ -17,17 +17,20 @@ package io.helidon.integrations.micrometer.reactive;
 
 import static org.hamcrest.Matchers.is;
 
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
+
 import io.helidon.common.http.Http;
 import io.helidon.common.media.type.MediaTypes;
 import io.helidon.config.Config;
 import io.helidon.config.ConfigSources;
 import io.helidon.integrations.micrometer.BuiltInRegistryType;
+import io.helidon.integrations.micrometer.MeterRegistryFactory;
 import io.helidon.reactive.webclient.WebClient;
 import io.helidon.reactive.webclient.WebClientResponse;
 import io.helidon.reactive.webserver.Routing;
 import io.helidon.reactive.webserver.WebServer;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
+
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +56,7 @@ public class MicrometerEndpointTests {
     public void testExplicitEndpointWithExplicitBuiltInRegistryViaBuilder() throws ExecutionException, InterruptedException {
         String context = "/bb";
         runTest(context, () -> MicrometerSupport.builder()
-                .meterRegistryFactorySupplier(ReactiveMeterRegistryFactory.builder()
+                .meterRegistryFactorySupplier(MeterRegistryFactory.builder()
                         .enrollBuiltInRegistry(BuiltInRegistryType.PROMETHEUS)
                         .build())
                 .webContext(context)

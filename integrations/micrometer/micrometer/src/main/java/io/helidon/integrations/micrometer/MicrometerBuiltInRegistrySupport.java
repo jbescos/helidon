@@ -17,20 +17,19 @@ package io.helidon.integrations.micrometer;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import io.helidon.config.Config;
+import io.helidon.config.ConfigValue;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.config.MeterRegistryConfig;
+import io.micrometer.prometheus.PrometheusConfig;
 
 /**
  * Framework for supporting Micrometer registry types.
  *
  */
-abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
+public abstract class MicrometerBuiltInRegistrySupport {
     abstract static class AbstractMeterRegistryConfig implements MeterRegistryConfig {
         private final Map<String, String> settings;
 
@@ -47,6 +46,41 @@ abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
         }
     }
 
+    static MicrometerBuiltInRegistrySupport create(BuiltInRegistryType type,
+            ConfigValue<Config> node) {
+        switch (type) {
+            case PROMETHEUS:
+                return create(type, PrometheusConfigImpl.registryConfig(node));
+
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+    }
+
+    static MicrometerBuiltInRegistrySupport create(BuiltInRegistryType type,
+            MeterRegistryConfig meterRegistryConfig) {
+        switch (type) {
+            case PROMETHEUS:
+                return new MicrometerPrometheusRegistrySupport(meterRegistryConfig);
+
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+    }
+
+    static MicrometerBuiltInRegistrySupport create(BuiltInRegistryType type) {
+        MeterRegistryConfig meterRegistryConfig;
+        switch (type) {
+            case PROMETHEUS:
+                meterRegistryConfig = PrometheusConfig.DEFAULT;
+                break;
+
+            default:
+                throw new IllegalArgumentException(unrecognizedMessage(type));
+        }
+        return create(type, meterRegistryConfig);
+    }
+
     private final MeterRegistry registry;
 
     protected MicrometerBuiltInRegistrySupport(MeterRegistryConfig meterRegistryConfig) {
@@ -54,20 +88,6 @@ abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
     }
 
     protected abstract MeterRegistry createRegistry(MeterRegistryConfig meterRegistryConfig);
-
-    Function<REQ, Optional<HAND>> requestToHandlerFn(MeterRegistry registry) {
-        /*
-         * Deal with a request if the MediaType is text/plain or the query parameter "type" specifies "prometheus".
-         */
-        return (REQ req) -> {
-            if (handlerFilter().test(req)) {
-                return Optional.of(handlerFn().apply(registry));
-            } else {
-                return Optional.empty();
-            }
-        };
-    }
-
 
     public MeterRegistry registry() {
         return registry;
@@ -77,7 +97,35 @@ abstract class MicrometerBuiltInRegistrySupport<REQ, HAND> {
         return String.format("Built-in registry type %s recognized but no support found", type.name());
     }
 
-    protected abstract Predicate<REQ> handlerFilter();
+    /**
+     * Prometheus configuration.
+     *
+     */
+    private static class PrometheusConfigImpl extends AbstractMeterRegistryConfig implements PrometheusConfig {
 
-    protected abstract Function<MeterRegistry, HAND> handlerFn();
+        /**
+         * Obtain a PrometheusConfig from the configuration.
+         * @param node with the configuration
+         * @return an instance of configured PrometheusConfig
+         */
+        public static PrometheusConfig registryConfig(ConfigValue<Config> node) {
+            return node
+                    .filter(Config::exists)
+                    .map(PrometheusConfigImpl::registryConfig)
+                    .orElse(PrometheusConfig.DEFAULT);
+        }
+
+        /**
+         * Obtain a PrometheusConfig from the configuration.
+         * @param config with the configuration
+         * @return an instance of configured PrometheusConfig
+         */
+        public static PrometheusConfig registryConfig(Config config) {
+            return new PrometheusConfigImpl(config);
+        }
+
+        private PrometheusConfigImpl(Config config) {
+            super(config);
+        }
+    }
 }
