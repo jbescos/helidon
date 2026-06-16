@@ -18,11 +18,15 @@ package io.helidon.config.hocon;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.helidon.common.Api;
 import io.helidon.common.Weight;
@@ -40,7 +44,11 @@ import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigList;
 import com.typesafe.config.ConfigObject;
 import com.typesafe.config.ConfigParseOptions;
+import com.typesafe.config.ConfigResolver;
 import com.typesafe.config.ConfigResolveOptions;
+import com.typesafe.config.ConfigUtil;
+import com.typesafe.config.ConfigValue;
+import com.typesafe.config.ConfigValueFactory;
 
 /**
  * Typesafe (Lightbend) Config (HOCON) {@link ConfigParser} implementation that supports following media types:
@@ -69,6 +77,7 @@ public class HoconConfigParser implements ConfigParser {
     private static final List<String> SUPPORTED_SUFFIXES = List.of("json", "conf");
     private static final Set<MediaType> SUPPORTED_MEDIA_TYPES =
             Set.of(MediaTypes.APPLICATION_HOCON, MediaTypes.APPLICATION_JSON);
+    private static final Pattern HOCON_REFERENCE = Pattern.compile("\\$\\{(\\?)?\\s*([^}]+?)\\s*}");
 
     private final boolean resolvingEnabled;
     private final ConfigResolveOptions resolveOptions;
@@ -134,9 +143,10 @@ public class HoconConfigParser implements ConfigParser {
             typesafeConfig = ConfigFactory.parseReader(readable, parseOptions);
             if (resolvingEnabled) {
                 typesafeConfig = typesafeConfig.resolve(resolveOptions);
+                return fromConfig(typesafeConfig.root());
             }
 
-            return fromConfig(typesafeConfig.root());
+            return fromConfig(typesafeConfig.root(), typesafeConfig, List.of());
         } catch (ConfigException e) {
             throw e;
         } catch (Exception e) {
@@ -154,17 +164,24 @@ public class HoconConfigParser implements ConfigParser {
         return "HOCON(" + MediaTypes.APPLICATION_HOCON.text() + ")";
     }
 
-    private static ObjectNode fromConfig(ConfigObject config) {
+    private static ObjectNode fromConfig(ConfigObject configObject) {
+        return fromConfig(configObject, configObject.toConfig(), List.of());
+    }
+
+    private static ObjectNode fromConfig(ConfigObject configObject, Config config, List<String> path) {
         ObjectNode.Builder builder = ObjectNode.builder();
-        config.forEach((unescapedKey, value) -> {
+        configObject.forEach((unescapedKey, value) -> {
+            List<String> childPath = childPath(path, unescapedKey);
+            ConfigValue valueToConvert = valueToConvert(value, config, childPath);
+
             String key = io.helidon.config.Config.Key.escapeName(unescapedKey);
-            if (value instanceof ConfigList configList) {
-                builder.addList(key, fromList(configList));
-            } else if (value instanceof ConfigObject configObject) {
-                builder.addObject(key, fromConfig(configObject));
+            if (valueToConvert instanceof ConfigList configList) {
+                builder.addList(key, fromList(configList, config, childPath));
+            } else if (valueToConvert instanceof ConfigObject hoconObject) {
+                builder.addObject(key, fromConfig(hoconObject, config, childPath));
             } else {
                 try {
-                    Object unwrapped = value.unwrapped();
+                    Object unwrapped = valueToConvert.unwrapped();
                     if (unwrapped == null) {
                         builder.addValue(key, "");
                     } else {
@@ -181,16 +198,19 @@ public class HoconConfigParser implements ConfigParser {
         return builder.build();
     }
 
-    private static ListNode fromList(ConfigList list) {
+    private static ListNode fromList(ConfigList list, Config config, List<String> path) {
         ListNode.Builder builder = ListNode.builder();
-        list.forEach(value -> {
-            if (value instanceof ConfigList configList) {
-                builder.addList(fromList(configList));
-            } else if (value instanceof ConfigObject configObject) {
-                builder.addObject(fromConfig(configObject));
+        for (int i = 0; i < list.size(); i++) {
+            ConfigValue value = list.get(i);
+            List<String> childPath = childPath(path, String.valueOf(i));
+            ConfigValue valueToConvert = valueToConvert(value, config, childPath);
+            if (valueToConvert instanceof ConfigList configList) {
+                builder.addList(fromList(configList, config, childPath));
+            } else if (valueToConvert instanceof ConfigObject configObject) {
+                builder.addObject(fromConfig(configObject, config, childPath));
             } else {
                 try {
-                    Object unwrapped = value.unwrapped();
+                    Object unwrapped = valueToConvert.unwrapped();
                     if (unwrapped == null) {
                         builder.addValue("");
                     } else {
@@ -203,8 +223,88 @@ public class HoconConfigParser implements ConfigParser {
                     builder.addValue(value.render());
                 }
             }
-        });
+        }
         return builder.build();
+    }
+
+    private static ConfigValue valueToConvert(ConfigValue value, Config config, List<String> path) {
+        if (hasSelfReference(value, path)) {
+            String hoconPath = ConfigUtil.joinPath(path);
+            try {
+                return config.withOnlyPath(hoconPath)
+                        .resolve(localResolveOptions(value))
+                        .getValue(hoconPath);
+            } catch (com.typesafe.config.ConfigException e) {
+                return value;
+            }
+        }
+        return value;
+    }
+
+    private static boolean hasSelfReference(ConfigValue value, List<String> path) {
+        return referencePaths(value, null).contains(path);
+    }
+
+    private static ConfigResolveOptions localResolveOptions(ConfigValue value) {
+        return ConfigResolveOptions.defaults()
+                .setAllowUnresolved(true)
+                .setUseSystemEnvironment(false)
+                .appendResolver(new DeferredReferenceResolver(referencePaths(value, false),
+                                                             referencePaths(value, true)));
+    }
+
+    private static Set<List<String>> referencePaths(ConfigValue value, Boolean optional) {
+        Set<List<String>> result = new HashSet<>();
+        Matcher matcher = HOCON_REFERENCE.matcher(value.render());
+        while (matcher.find()) {
+            boolean referenceOptional = matcher.group(1) != null;
+            if (optional == null || optional == referenceOptional) {
+                try {
+                    result.add(ConfigUtil.splitPath(matcher.group(2).trim()));
+                } catch (com.typesafe.config.ConfigException e) {
+                    // Ignore values that are not parseable as HOCON paths.
+                }
+            }
+        }
+        return result;
+    }
+
+    private static List<String> childPath(List<String> path, String child) {
+        List<String> childPath = new ArrayList<>(path.size() + 1);
+        childPath.addAll(path);
+        childPath.add(child);
+        return childPath;
+    }
+
+    private static class DeferredReferenceResolver implements ConfigResolver {
+        private final Set<List<String>> requiredReferences;
+        private final Set<List<String>> optionalReferences;
+
+        DeferredReferenceResolver(Set<List<String>> requiredReferences, Set<List<String>> optionalReferences) {
+            this.requiredReferences = requiredReferences;
+            this.optionalReferences = optionalReferences;
+        }
+
+        @Override
+        public ConfigValue lookup(String path) {
+            List<String> referencePath;
+            try {
+                referencePath = ConfigUtil.splitPath(path);
+            } catch (com.typesafe.config.ConfigException e) {
+                return ConfigValueFactory.fromAnyRef("${" + path + "}");
+            }
+
+            if (!requiredReferences.contains(referencePath) && optionalReferences.contains(referencePath)) {
+                return null;
+            }
+
+            return ConfigValueFactory.fromAnyRef("${" + path + "}");
+        }
+
+        @Override
+        public ConfigResolver withFallback(ConfigResolver fallback) {
+            return this;
+        }
     }
 
 }

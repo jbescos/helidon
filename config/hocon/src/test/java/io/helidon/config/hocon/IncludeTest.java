@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2023 Oracle and/or its affiliates.
+ * Copyright (c) 2022, 2026 Oracle and/or its affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,12 @@
 package io.helidon.config.hocon;
 
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 
 import io.helidon.config.ClasspathConfigSource;
 import io.helidon.config.Config;
+import io.helidon.config.ConfigSources;
 import io.helidon.config.FileConfigSource;
 import io.helidon.config.spi.ConfigParserException;
 
@@ -63,6 +66,36 @@ class IncludeTest {
 
         assertThat("server.host should be loaded from sub/included.conf", value, notNullValue());
         assertThat(value, is("127.0.0.1"));
+    }
+
+    @Test
+    void testSelfReferenceFromIncludedValue() {
+        Config config = Config.just(ClasspathConfigSource.create("conf/self-reference-override.conf"));
+
+        List<String> value = config.get("items")
+                .asList(String.class)
+                .orElse(List.of());
+
+        assertThat(value, is(List.of("base-alpha",
+                                     "base-beta",
+                                     "override-alpha",
+                                     "override-beta",
+                                     "override-gamma")));
+    }
+
+    @Test
+    void testSelfReferenceKeepsNestedReferencesDeferred() {
+        Config config = Config.builder(ConfigSources.create(Map.of("itemName", "external")),
+                                       ClasspathConfigSource.create("conf/self-reference-deferred-override.conf"))
+                .disableEnvironmentVariablesSource()
+                .disableSystemPropertiesSource()
+                .build();
+
+        List<String> value = config.get("items")
+                .asList(String.class)
+                .orElse(List.of());
+
+        assertThat(value, is(List.of("external", "override")));
     }
 
     @Test
