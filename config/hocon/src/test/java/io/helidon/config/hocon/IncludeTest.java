@@ -125,4 +125,24 @@ class IncludeTest {
         assertThat("server.port should be loaded from sub/included.conf", value, notNullValue());
         assertThat(value, is("8080"));
     }
+
+    @Test
+    void testIncludedReferenceOverridesBaseValue() {
+        Config config = Config.builder()
+                .disableEnvironmentVariablesSource()
+                .disableSystemPropertiesSource()
+                .addSource(ConfigSources.create(Map.of("T2_PROJECT", "ed_dedicated_intc",
+                                                       "T2_FLEET", "ed-intc-omta")))
+                .addSource(ClasspathConfigSource.create("conf/merge-reference-override.conf"))
+                .build();
+
+        assertThat(config.get("metrics.publishers.oci.enabled").asString().orElse(null), is("true"));
+        assertThat(config.get("metrics.publishers.oci.gauge-sample-interval").asString().orElse(null), is("PT3S"));
+        assertThat(config.get("metrics.publishers.oci.project").asString().orElse(null), is("ed_dedicated_intc"));
+        assertThat(config.get("metrics.publishers.oci.fleet").asString().orElse(null), is("ed-intc-omta"));
+        assertThat(config.get("metrics.publishers.oci.default-dimensions.project").asString().orElse(null),
+                   is("ed_dedicated_intc"));
+        assertThat(config.get("metrics.publishers.oci.default-dimensions.fleet").asString().orElse(null),
+                   is("ed-intc-omta"));
+    }
 }

@@ -78,6 +78,7 @@ public class HoconConfigParser implements ConfigParser {
     private static final Set<MediaType> SUPPORTED_MEDIA_TYPES =
             Set.of(MediaTypes.APPLICATION_HOCON, MediaTypes.APPLICATION_JSON);
     private static final Pattern HOCON_REFERENCE = Pattern.compile("\\$\\{(\\?)?\\s*([^}]+?)\\s*}");
+    private static final String LOCAL_RESOLVE_PATH = "helidon-local-resolution";
 
     private final boolean resolvingEnabled;
     private final ConfigResolveOptions resolveOptions;
@@ -165,20 +166,24 @@ public class HoconConfigParser implements ConfigParser {
     }
 
     private static ObjectNode fromConfig(ConfigObject configObject) {
-        return fromConfig(configObject, configObject.toConfig(), List.of());
+        return fromConfig(configObject, configObject.toConfig(), List.of(), false);
     }
 
     private static ObjectNode fromConfig(ConfigObject configObject, Config config, List<String> path) {
+        return fromConfig(configObject, config, path, true);
+    }
+
+    private static ObjectNode fromConfig(ConfigObject configObject, Config config, List<String> path, boolean locallyResolve) {
         ObjectNode.Builder builder = ObjectNode.builder();
         configObject.forEach((unescapedKey, value) -> {
             List<String> childPath = childPath(path, unescapedKey);
-            ConfigValue valueToConvert = valueToConvert(value, config, childPath);
+            ConfigValue valueToConvert = valueToConvert(value, config, childPath, locallyResolve);
 
             String key = io.helidon.config.Config.Key.escapeName(unescapedKey);
             if (valueToConvert instanceof ConfigList configList) {
-                builder.addList(key, fromList(configList, config, childPath));
+                builder.addList(key, fromList(configList, config, childPath, locallyResolve));
             } else if (valueToConvert instanceof ConfigObject hoconObject) {
-                builder.addObject(key, fromConfig(hoconObject, config, childPath));
+                builder.addObject(key, fromConfig(hoconObject, config, childPath, locallyResolve));
             } else {
                 try {
                     Object unwrapped = valueToConvert.unwrapped();
@@ -191,23 +196,23 @@ public class HoconConfigParser implements ConfigParser {
                     // An unresolved ConfigReference resolved later in config module since
                     // Helidon and Hocon use the same reference syntax and resolving here
                     // would be too early for resolution across sources
-                    builder.addValue(key, value.render());
+                    builder.addValue(key, valueToConvert.render());
                 }
             }
         });
         return builder.build();
     }
 
-    private static ListNode fromList(ConfigList list, Config config, List<String> path) {
+    private static ListNode fromList(ConfigList list, Config config, List<String> path, boolean locallyResolve) {
         ListNode.Builder builder = ListNode.builder();
         for (int i = 0; i < list.size(); i++) {
             ConfigValue value = list.get(i);
             List<String> childPath = childPath(path, String.valueOf(i));
-            ConfigValue valueToConvert = valueToConvert(value, config, childPath);
+            ConfigValue valueToConvert = valueToConvert(value, config, childPath, locallyResolve);
             if (valueToConvert instanceof ConfigList configList) {
-                builder.addList(fromList(configList, config, childPath));
+                builder.addList(fromList(configList, config, childPath, locallyResolve));
             } else if (valueToConvert instanceof ConfigObject configObject) {
-                builder.addObject(fromConfig(configObject, config, childPath));
+                builder.addObject(fromConfig(configObject, config, childPath, locallyResolve));
             } else {
                 try {
                     Object unwrapped = valueToConvert.unwrapped();
@@ -220,29 +225,46 @@ public class HoconConfigParser implements ConfigParser {
                     // An unresolved ConfigReference resolved later in config module since
                     // Helidon and Hocon use the same reference syntax and resolving here
                     // would be too early for resolution across sources
-                    builder.addValue(value.render());
+                    builder.addValue(valueToConvert.render());
                 }
             }
         }
         return builder.build();
     }
 
-    private static ConfigValue valueToConvert(ConfigValue value, Config config, List<String> path) {
-        if (hasSelfReference(value, path)) {
-            String hoconPath = ConfigUtil.joinPath(path);
-            try {
-                return config.withOnlyPath(hoconPath)
-                        .resolve(localResolveOptions(value))
-                        .getValue(hoconPath);
-            } catch (com.typesafe.config.ConfigException e) {
-                return value;
-            }
+    private static ConfigValue valueToConvert(ConfigValue value, Config config, List<String> path, boolean locallyResolve) {
+        if (!locallyResolve || !needsLocalResolution(value)) {
+            return value;
         }
-        return value;
+
+        String hoconPath = ConfigUtil.joinPath(path);
+        try {
+            // Materialize delayed HOCON merges while preserving required references for Helidon source-merge resolution.
+            return config.withOnlyPath(hoconPath)
+                    .resolve(localResolveOptions(value))
+                    .getValue(hoconPath);
+        } catch (com.typesafe.config.ConfigException e) {
+            return resolveLocalValue(value);
+        }
     }
 
-    private static boolean hasSelfReference(ConfigValue value, List<String> path) {
-        return referencePaths(value, null).contains(path);
+    private static ConfigValue resolveLocalValue(ConfigValue value) {
+        try {
+            return value.atPath(LOCAL_RESOLVE_PATH)
+                    .resolve(localResolveOptions(value))
+                    .getValue(LOCAL_RESOLVE_PATH);
+        } catch (com.typesafe.config.ConfigException e) {
+            return value;
+        }
+    }
+
+    private static boolean needsLocalResolution(ConfigValue value) {
+        try {
+            value.valueType();
+            return false;
+        } catch (com.typesafe.config.ConfigException.NotResolved e) {
+            return true;
+        }
     }
 
     private static ConfigResolveOptions localResolveOptions(ConfigValue value) {
@@ -253,12 +275,12 @@ public class HoconConfigParser implements ConfigParser {
                                                              referencePaths(value, true)));
     }
 
-    private static Set<List<String>> referencePaths(ConfigValue value, Boolean optional) {
+    private static Set<List<String>> referencePaths(ConfigValue value, boolean optional) {
         Set<List<String>> result = new HashSet<>();
         Matcher matcher = HOCON_REFERENCE.matcher(value.render());
         while (matcher.find()) {
             boolean referenceOptional = matcher.group(1) != null;
-            if (optional == null || optional == referenceOptional) {
+            if (optional == referenceOptional) {
                 try {
                     result.add(ConfigUtil.splitPath(matcher.group(2).trim()));
                 } catch (com.typesafe.config.ConfigException e) {
