@@ -84,6 +84,21 @@ class IncludeTest {
     }
 
     @Test
+    void testBasicAuthEnabledServicesSelfReferenceFromIncludedProd() {
+        Config config = Config.just(ClasspathConfigSource.create("conf/basic-auth-services.conf"));
+
+        List<String> value = config.get("basicAuthEnabledServices")
+                .asList(String.class)
+                .orElse(List.of());
+
+        assertThat(value, is(List.of("prod-alpha",
+                                     "prod-beta",
+                                     "canary-unstable-alpha",
+                                     "canary-unstable-beta",
+                                     "canary-unstable-gamma")));
+    }
+
+    @Test
     void testSelfReferenceKeepsNestedReferencesDeferred() {
         Config config = Config.builder(ConfigSources.create(Map.of("itemName", "external")),
                                        ClasspathConfigSource.create("conf/self-reference-deferred-override.conf"))
