@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
+import io.helidon.common.media.type.MediaTypes;
 import io.helidon.config.ClasspathConfigSource;
 import io.helidon.config.Config;
 import io.helidon.config.ConfigSources;
@@ -96,6 +97,25 @@ class IncludeTest {
                                      "canary-unstable-alpha",
                                      "canary-unstable-beta",
                                      "canary-unstable-gamma")));
+    }
+
+    @Test
+    void testBasicAuthEnabledServicesSelfReferenceWithoutIncludedValueFails() {
+        String hocon = ""
+                + "basicAuthEnabledServices: ${basicAuthEnabledServices} [\n"
+                + "  \"canary-unstable-alpha\",\n"
+                + "  \"canary-unstable-beta\",\n"
+                + "  \"canary-unstable-gamma\"\n"
+                + "]\n";
+
+        Config config = Config.just(ConfigSources.create(hocon, MediaTypes.APPLICATION_HOCON));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                                                () -> config.get("basicAuthEnabledServices")
+                                                        .asList(String.class)
+                                                        .get());
+
+        assertThat(ex.getMessage(), is("Recursive update"));
     }
 
     @Test
